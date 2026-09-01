@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Therapy Cards",
+    "slug": "therapy-cards",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F5F54"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
