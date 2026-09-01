@@ -14,6 +14,17 @@ type TabKey = "cadastro" | "prontuario" | "mensagens" | "jogo";
 type Actor = "therapist" | "patient";
 type GameMode = "daily" | "session";
 
+type AuthSession = {
+  role: Actor;
+  name: string;
+  email: string;
+  patientId?: string;
+};
+
+type AuthAccount = AuthSession & {
+  password: string;
+};
+
 type Patient = {
   id: string;
   name: string;
@@ -85,6 +96,8 @@ const tabs: { id: TabKey; label: string; icon: string }[] = [
   { id: "jogo", label: "Jogo", icon: "JG" }
 ];
 
+const patientTabs: TabKey[] = ["mensagens", "jogo"];
+
 const initialPatients: Patient[] = [
   {
     id: "p1",
@@ -116,6 +129,22 @@ const initialPatients: Patient[] = [
     phone: "(21) 98888-1111",
     email: "maria@email.com"
   }
+];
+
+const authAccounts: AuthAccount[] = [
+  {
+    role: "therapist",
+    name: "Dra. Helena Vasconcelos",
+    email: "terapeuta@therapy.com",
+    password: "123456"
+  },
+  ...initialPatients.map((patient) => ({
+    role: "patient" as const,
+    name: patient.name,
+    email: patient.email,
+    password: "123456",
+    patientId: patient.id
+  }))
 ];
 
 const decks: Deck[] = [
@@ -303,8 +332,8 @@ function getProgramDayIndex(startedAt: string) {
 }
 
 export default function App() {
+  const [session, setSession] = useState<AuthSession | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("cadastro");
-  const [actor, setActor] = useState<Actor>("therapist");
   const [patients, setPatients] = useState(initialPatients);
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatients[0].id);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -327,6 +356,41 @@ export default function App() {
   const [responses, setResponses] = useState<ResponseRecord[]>([]);
   const [notifications, setNotifications] = useState<string[]>([]);
 
+  function login(email: string, password: string) {
+    const account = authAccounts.find(
+      (item) => item.email.toLowerCase() === email.trim().toLowerCase() && item.password === password
+    );
+
+    if (!account) {
+      return false;
+    }
+
+    const { password: _password, ...nextSession } = account;
+    setSession(nextSession);
+
+    if (account.role === "patient" && account.patientId) {
+      setSelectedPatientId(account.patientId);
+      setActiveTab("mensagens");
+    } else {
+      setActiveTab("cadastro");
+    }
+
+    return true;
+  }
+
+  function logout() {
+    setSession(null);
+    setActiveTab("cadastro");
+    setSelectedPatientId(initialPatients[0].id);
+  }
+
+  if (!session) {
+    return <LoginScreen onLogin={login} />;
+  }
+
+  const actor = session.role;
+  const availableTabs = tabs.filter((tab) => actor === "therapist" || patientTabs.includes(tab.id));
+  const currentTab = actor === "patient" && !patientTabs.includes(activeTab) ? "mensagens" : activeTab;
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId) ?? patients[0];
 
   function addPatient(patient: Patient) {
@@ -355,12 +419,12 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={palette.surface} />
       <View style={styles.appShell}>
-        <TopBar actor={actor} onChangeActor={setActor} patient={selectedPatient} />
+        <TopBar session={session} patient={selectedPatient} onLogout={logout} />
         <View style={styles.content}>
-          {activeTab === "cadastro" ? (
+          {currentTab === "cadastro" ? (
             <RegistrationScreen actor={actor} onAddPatient={addPatient} patients={patients} />
           ) : null}
-          {activeTab === "prontuario" ? (
+          {currentTab === "prontuario" ? (
             <RecordScreen
               patient={selectedPatient}
               patients={patients}
@@ -369,7 +433,7 @@ export default function App() {
               onSelectPatient={setSelectedPatientId}
             />
           ) : null}
-          {activeTab === "mensagens" ? (
+          {currentTab === "mensagens" ? (
             <MessagesScreen
               actor={actor}
               messages={messages}
@@ -394,7 +458,7 @@ export default function App() {
               }
             />
           ) : null}
-          {activeTab === "jogo" ? (
+          {currentTab === "jogo" ? (
             <GameScreen
               actor={actor}
               notifications={notifications}
@@ -409,33 +473,83 @@ export default function App() {
             />
           ) : null}
         </View>
-        <BottomTabs activeTab={activeTab} onChange={setActiveTab} />
+        <BottomTabs activeTab={currentTab} tabs={availableTabs} onChange={setActiveTab} />
       </View>
     </SafeAreaView>
   );
 }
 
+function LoginScreen({ onLogin }: { onLogin: (email: string, password: string) => boolean }) {
+  const [email, setEmail] = useState("terapeuta@therapy.com");
+  const [password, setPassword] = useState("123456");
+  const [error, setError] = useState("");
+
+  function submit() {
+    const didLogin = onLogin(email, password);
+    setError(didLogin ? "" : "E-mail ou senha inválidos.");
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor={palette.surface} />
+      <ScrollView contentContainerStyle={styles.loginScreen} keyboardShouldPersistTaps="handled">
+        <View style={styles.loginMark}>
+          <Text style={styles.loginMarkText}>TC</Text>
+        </View>
+        <Text style={styles.loginTitle}>Therapy Cards</Text>
+        <Text style={styles.loginSubtitle}>Entre com um acesso de terapeuta ou paciente.</Text>
+
+        <View style={styles.loginPanel}>
+          <Input
+            label="E-mail"
+            value={email}
+            onChangeText={setEmail}
+            placeholder="seu@email.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <Input
+            label="Senha"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Digite sua senha"
+            secureTextEntry
+          />
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <PrimaryButton label="Entrar" onPress={submit} />
+        </View>
+
+        <View style={styles.credentialsPanel}>
+          <Text style={styles.credentialsTitle}>Acessos de teste</Text>
+          <Text style={styles.credentialsText}>Terapeuta: terapeuta@therapy.com / 123456</Text>
+          <Text style={styles.credentialsText}>Paciente: rafaela@email.com / 123456</Text>
+          <Text style={styles.credentialsText}>Paciente: carlos@email.com / 123456</Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 function TopBar({
-  actor,
-  onChangeActor,
-  patient
+  session,
+  patient,
+  onLogout
 }: {
-  actor: Actor;
-  onChangeActor: (actor: Actor) => void;
+  session: AuthSession;
   patient: Patient;
+  onLogout: () => void;
 }) {
   return (
     <View style={styles.topBar}>
       <View>
         <Text style={styles.appTitle}>Therapy Portal</Text>
         <Text style={styles.appSubtitle}>
-          {actor === "therapist" ? "Área do terapeuta" : `Paciente: ${patient.name}`}
+          {session.role === "therapist" ? `Terapeuta: ${session.name}` : `Paciente: ${patient.name}`}
         </Text>
       </View>
-      <View style={styles.actorSwitch}>
-        <SegmentButton active={actor === "therapist"} label="Terapeuta" onPress={() => onChangeActor("therapist")} />
-        <SegmentButton active={actor === "patient"} label="Paciente" onPress={() => onChangeActor("patient")} />
-      </View>
+      <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+        <Text style={styles.logoutButtonText}>Sair</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -600,7 +714,9 @@ function MessagesScreen({
 
   return (
     <Screen title="Mensagens" eyebrow="Contato assíncrono">
-      <PatientPicker patients={patients} selectedPatientId={selectedPatientId} onSelectPatient={onSelectPatient} />
+      {actor === "therapist" ? (
+        <PatientPicker patients={patients} selectedPatientId={selectedPatientId} onSelectPatient={onSelectPatient} />
+      ) : null}
 
       <Section title={`Conversa com ${patient.name}`}>
         <View style={styles.chatBox}>
@@ -722,7 +838,9 @@ function GameScreen({
 
   return (
     <Screen title="Jogo de cartas" eyebrow="Paciente primeiro, cartas depois">
-      <PatientPicker patients={patients} selectedPatientId={selectedPatientId} onSelectPatient={onSelectPatient} />
+      {actor === "therapist" ? (
+        <PatientPicker patients={patients} selectedPatientId={selectedPatientId} onSelectPatient={onSelectPatient} />
+      ) : null}
 
       {actor === "therapist" ? (
         <>
@@ -934,6 +1052,8 @@ function Input({
   placeholder: string;
   multiline?: boolean;
   keyboardType?: "default" | "email-address" | "phone-pad";
+  secureTextEntry?: boolean;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }) {
   return (
     <View style={styles.inputGroup}>
@@ -1005,10 +1125,18 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-function BottomTabs({ activeTab, onChange }: { activeTab: TabKey; onChange: (tab: TabKey) => void }) {
+function BottomTabs({
+  activeTab,
+  tabs: visibleTabs,
+  onChange
+}: {
+  activeTab: TabKey;
+  tabs: { id: TabKey; label: string; icon: string }[];
+  onChange: (tab: TabKey) => void;
+}) {
   return (
     <View style={styles.bottomTabs}>
-      {tabs.map((tab) => (
+      {visibleTabs.map((tab) => (
         <TouchableOpacity key={tab.id} style={styles.tabButton} onPress={() => onChange(tab.id)}>
           <View style={[styles.tabIcon, activeTab === tab.id ? styles.tabIconActive : null]}>
             <Text style={[styles.tabIconText, activeTab === tab.id ? styles.tabIconTextActive : null]}>{tab.icon}</Text>
@@ -1030,6 +1158,9 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface
   },
   topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 14,
@@ -1037,6 +1168,85 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.line,
     backgroundColor: palette.card,
     gap: 12
+  },
+  loginScreen: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: palette.surface
+  },
+  loginMark: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: palette.teal,
+    marginBottom: 16
+  },
+  loginMarkText: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "900"
+  },
+  loginTitle: {
+    color: palette.ink,
+    fontSize: 32,
+    fontWeight: "900",
+    marginBottom: 6
+  },
+  loginSubtitle: {
+    color: palette.muted,
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 20
+  },
+  loginPanel: {
+    backgroundColor: palette.card,
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: palette.line,
+    marginBottom: 14
+  },
+  credentialsPanel: {
+    backgroundColor: palette.mint,
+    borderRadius: 8,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: palette.line
+  },
+  credentialsTitle: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: "900",
+    marginBottom: 6
+  },
+  credentialsText: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 18
+  },
+  errorText: {
+    color: "#B42338",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 10
+  },
+  logoutButton: {
+    minHeight: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    backgroundColor: palette.surface
+  },
+  logoutButtonText: {
+    color: palette.teal,
+    fontSize: 12,
+    fontWeight: "900"
   },
   appTitle: {
     color: palette.ink,
