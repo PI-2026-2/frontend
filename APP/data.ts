@@ -2,7 +2,7 @@ import { AuthAccount, Deck, Patient, TabDefinition, TabKey, TherapyCard } from "
 
 export const tabs: TabDefinition[] = [
   { id: "cadastro", label: "Cadastro", icon: "ID" },
-  { id: "prontuario", label: "Prontuário", icon: "PT" },
+  { id: "pacientes", label: "Pacientes", icon: "PC" },
   { id: "mensagens", label: "Mensagens", icon: "MS" },
   { id: "jogo", label: "Jogo", icon: "JG" }
 ];

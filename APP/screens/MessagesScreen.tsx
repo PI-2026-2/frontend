@@ -25,7 +25,14 @@ export function MessagesScreen({ actor, messages, patient, patients, selectedPat
   return (
     <Screen title="Mensagens" eyebrow="Contato assíncrono">
       {actor === "therapist" ? (
-        <PatientPicker patients={patients} selectedPatientId={selectedPatientId} onSelectPatient={onSelectPatient} />
+        <PatientPicker
+          patients={patients}
+          selectedPatientId={selectedPatientId}
+          onSelectPatient={(patientId) => {
+            if (patientId !== selectedPatientId) setDraft("");
+            onSelectPatient(patientId);
+          }}
+        />
       ) : null}
 
       <Section title={`Conversa com ${patient.name}`}>

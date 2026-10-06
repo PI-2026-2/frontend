@@ -98,7 +98,17 @@ export function GameScreen({
   return (
     <Screen title="Jogo de cartas" eyebrow="Paciente primeiro, cartas depois">
       {actor === "therapist" ? (
-        <PatientPicker patients={patients} selectedPatientId={selectedPatientId} onSelectPatient={onSelectPatient} />
+        <PatientPicker
+          patients={patients}
+          selectedPatientId={selectedPatientId}
+          onSelectPatient={(patientId) => {
+            if (patientId !== selectedPatientId) {
+              setSelectedCardIds([]);
+              setSessionNote("");
+            }
+            onSelectPatient(patientId);
+          }}
+        />
       ) : null}
 
       {actor === "therapist" ? (

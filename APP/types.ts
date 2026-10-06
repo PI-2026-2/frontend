@@ -1,4 +1,4 @@
-export type TabKey = "cadastro" | "prontuario" | "mensagens" | "jogo";
+export type TabKey = "cadastro" | "pacientes" | "mensagens" | "jogo";
 export type Actor = "therapist" | "patient";
 export type GameMode = "daily" | "session";
 
@@ -52,6 +52,13 @@ export type ResponseRecord = {
   mode: GameMode;
   answer: string;
   note?: string;
+  createdAt: string;
+};
+
+export type ClinicalNote = {
+  id: string;
+  patientId: string;
+  text: string;
   createdAt: string;
 };
 

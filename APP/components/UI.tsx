@@ -1,14 +1,28 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { styles } from "../styles";
 import { Patient } from "../types";
+import { matchesPatientSearch } from "../utils";
 
-export function Screen({ title, eyebrow, children }: { title: string; eyebrow: string; children: React.ReactNode }) {
-  return (
-    <ScrollView contentContainerStyle={styles.screen} showsVerticalScrollIndicator={false}>
+export function Screen({ title, eyebrow, leading, constrained, children }: {
+  title: string;
+  eyebrow: string;
+  leading?: React.ReactNode;
+  constrained?: boolean;
+  children: React.ReactNode;
+}) {
+  const content = (
+    <>
+      {leading}
       <Text style={styles.eyebrow}>{eyebrow}</Text>
       <Text style={styles.screenTitle}>{title}</Text>
       {children}
+    </>
+  );
+
+  return (
+    <ScrollView contentContainerStyle={styles.screen} showsVerticalScrollIndicator={false}>
+      {constrained ? <View style={styles.constrainedScreen}>{content}</View> : content}
     </ScrollView>
   );
 }
@@ -27,21 +41,45 @@ export function PatientPicker({ patients, selectedPatientId, onSelectPatient }: 
   selectedPatientId: string;
   onSelectPatient: (patientId: string) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const selectedPatient = patients.find((patient) => patient.id === selectedPatientId);
+  const visiblePatients = patients.filter((patient) => matchesPatientSearch(patient, query));
+
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.patientPicker}>
-      {patients.map((patient) => (
-        <TouchableOpacity
-          key={patient.id}
-          style={[styles.patientChip, patient.id === selectedPatientId ? styles.patientChipActive : null]}
-          onPress={() => onSelectPatient(patient.id)}
-        >
-          <Avatar name={patient.name} size={32} />
-          <Text style={[styles.patientChipText, patient.id === selectedPatientId ? styles.patientChipTextActive : null]}>
-            {patient.name}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
+    <View style={styles.patientPickerPanel}>
+      <TextInput
+        accessibilityLabel="Buscar pacientes por nome, ID ou telefone"
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Buscar por nome, ID ou telefone"
+        placeholderTextColor="#9AA6A3"
+        style={styles.patientSearchInput}
+      />
+      <Text style={styles.patientPickerSelected}>Paciente selecionado: {selectedPatient?.name}</Text>
+      {visiblePatients.length === 0 ? (
+        <Text style={styles.patientPickerEmpty}>Nenhum paciente encontrado.</Text>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.patientPicker}>
+          {visiblePatients.map((patient) => (
+            <TouchableOpacity
+              key={patient.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Selecionar ${patient.name}`}
+              style={[styles.patientChip, patient.id === selectedPatientId ? styles.patientChipActive : null]}
+              onPress={() => {
+                onSelectPatient(patient.id);
+                setQuery("");
+              }}
+            >
+              <Avatar name={patient.name} size={32} />
+              <Text style={[styles.patientChipText, patient.id === selectedPatientId ? styles.patientChipTextActive : null]}>
+                {patient.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+    </View>
   );
 }
 

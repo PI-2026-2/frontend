@@ -5,10 +5,11 @@ import { authAccounts, cards, initialPatients, patientTabs, tabs } from "./APP/d
 import { GameScreen } from "./APP/screens/GameScreen";
 import { LoginScreen } from "./APP/screens/LoginScreen";
 import { MessagesScreen } from "./APP/screens/MessagesScreen";
+import { PatientsScreen } from "./APP/screens/PatientsScreen";
 import { RecordScreen } from "./APP/screens/RecordScreen";
 import { RegistrationScreen } from "./APP/screens/RegistrationScreen";
 import { palette, styles } from "./APP/styles";
-import { AuthSession, ChatMessage, Patient, Program, ResponseRecord, TabKey } from "./APP/types";
+import { AuthSession, ChatMessage, ClinicalNote, Patient, Program, ResponseRecord, TabKey } from "./APP/types";
 import { getTodayLabel } from "./APP/utils";
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>("cadastro");
   const [patients, setPatients] = useState(initialPatients);
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatients[0].id);
+  const [openRecordPatientId, setOpenRecordPatientId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "m1",
@@ -34,6 +36,7 @@ export default function App() {
   ]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [responses, setResponses] = useState<ResponseRecord[]>([]);
+  const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
   const [notifications, setNotifications] = useState<string[]>([]);
 
   function login(email: string, password: string) {
@@ -60,11 +63,14 @@ export default function App() {
     setSession(null);
     setActiveTab("cadastro");
     setSelectedPatientId(initialPatients[0].id);
+    setOpenRecordPatientId(null);
   }
 
   function addPatient(patient: Patient) {
     setPatients((current) => [patient, ...current]);
     setSelectedPatientId(patient.id);
+    setOpenRecordPatientId(patient.id);
+    setActiveTab("pacientes");
   }
 
   if (!session) return <LoginScreen onLogin={login} />;
@@ -73,6 +79,27 @@ export default function App() {
   const availableTabs = tabs.filter((tab) => actor === "therapist" || patientTabs.includes(tab.id));
   const currentTab = actor === "patient" && !patientTabs.includes(activeTab) ? "mensagens" : activeTab;
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId) ?? patients[0];
+  const recordPatient = patients.find((patient) => patient.id === openRecordPatientId);
+
+  function changeTab(tab: TabKey) {
+    setOpenRecordPatientId(null);
+    setActiveTab(tab);
+  }
+
+  function openPatient(patientId: string) {
+    setSelectedPatientId(patientId);
+    setOpenRecordPatientId(patientId);
+  }
+
+  function saveClinicalNote(text: string) {
+    if (!recordPatient) return;
+    setClinicalNotes((current) => [{
+      id: `n${Date.now()}`,
+      patientId: recordPatient.id,
+      text,
+      createdAt: new Date().toISOString()
+    }, ...current]);
+  }
 
   function addResponse(response: ResponseRecord) {
     const card = cards.find((item) => item.id === response.cardId);
@@ -100,14 +127,21 @@ export default function App() {
           {currentTab === "cadastro" ? (
             <RegistrationScreen actor={actor} onAddPatient={addPatient} patients={patients} />
           ) : null}
-          {currentTab === "prontuario" ? (
-            <RecordScreen
-              patient={selectedPatient}
-              patients={patients}
-              responses={responses}
-              selectedPatientId={selectedPatientId}
-              onSelectPatient={setSelectedPatientId}
-            />
+          {currentTab === "pacientes" ? (
+            recordPatient ? (
+              <RecordScreen
+                patient={recordPatient}
+                responses={responses}
+                notes={clinicalNotes}
+                onBack={() => setOpenRecordPatientId(null)}
+                onSaveNote={saveClinicalNote}
+              />
+            ) : (
+              <PatientsScreen
+                patients={patients}
+                onOpenPatient={openPatient}
+              />
+            )
           ) : null}
           {currentTab === "mensagens" ? (
             <MessagesScreen
@@ -149,7 +183,7 @@ export default function App() {
             />
           ) : null}
         </View>
-        <BottomTabs activeTab={currentTab} tabs={availableTabs} onChange={setActiveTab} />
+        <BottomTabs activeTab={currentTab} tabs={availableTabs} onChange={changeTab} />
       </View>
     </SafeAreaView>
   );

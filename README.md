@@ -3,7 +3,7 @@
 Protótipo em React Native com Expo Go baseado nas telas do Figma e no escopo priorizado:
 
 - Cadastro
-- Prontuário mínimo
+- Pacientes (lista com busca e ficha de prontuário mínimo)
 - Mensagens
 - Jogo de cartas
 
