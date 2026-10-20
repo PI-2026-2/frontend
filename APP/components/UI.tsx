@@ -142,9 +142,9 @@ export function PrimaryButton({ label, onPress, disabled }: { label: string; onP
   );
 }
 
-export function SecondaryButton({ label, onPress }: { label: string; onPress: () => void }) {
+export function SecondaryButton({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   return (
-    <TouchableOpacity style={styles.secondaryButton} onPress={onPress}>
+    <TouchableOpacity disabled={disabled} style={[styles.secondaryButton, disabled ? styles.buttonDisabled : null]} onPress={onPress}>
       <Text style={styles.secondaryButtonText}>{label}</Text>
     </TouchableOpacity>
   );

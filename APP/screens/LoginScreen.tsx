@@ -21,7 +21,7 @@ export function LoginScreen({ onLogin }: { onLogin: (email: string, password: st
           <Text style={styles.loginMarkText}>TC</Text>
         </View>
         <Text style={styles.loginTitle}>Therapy Cards</Text>
-        <Text style={styles.loginSubtitle}>Entre com um acesso de terapeuta ou paciente.</Text>
+        <Text style={styles.loginSubtitle}>Entre com um acesso de administrador, terapeuta ou paciente.</Text>
 
         <View style={styles.loginPanel}>
           <Input
@@ -45,6 +45,7 @@ export function LoginScreen({ onLogin }: { onLogin: (email: string, password: st
 
         <View style={styles.credentialsPanel}>
           <Text style={styles.credentialsTitle}>Acessos de teste</Text>
+          <Text style={styles.credentialsText}>Administrador: admin@therapy.com / 123456</Text>
           <Text style={styles.credentialsText}>Terapeuta: terapeuta@therapy.com / 123456</Text>
           <Text style={styles.credentialsText}>Paciente: rafaela@email.com / 123456</Text>
           <Text style={styles.credentialsText}>Paciente: carlos@email.com / 123456</Text>

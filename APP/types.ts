@@ -1,6 +1,13 @@
 export type TabKey = "cadastro" | "pacientes" | "mensagens" | "jogo";
-export type Actor = "therapist" | "patient";
+export type Actor = "therapist" | "patient" | "admin";
 export type GameMode = "daily" | "session";
+export type CardClassification = "Conhecer" | "Identificar" | "Explorar" | "Aprofundar" | "Refletir" | "Construir" | "Encerrar";
+
+export type Theme = {
+  id: string;
+  name: string;
+  description: string;
+};
 
 export type AuthSession = {
   role: Actor;
@@ -29,11 +36,13 @@ export type TherapyCard = {
   deckId: string;
   title: string;
   theme: string;
+  classification: CardClassification;
   prompt: string;
 };
 
 export type Deck = {
   id: string;
+  themeId: string;
   name: string;
   description: string;
 };
@@ -58,8 +67,10 @@ export type ResponseRecord = {
 export type ClinicalNote = {
   id: string;
   patientId: string;
+  title: string;
   text: string;
   createdAt: string;
+  updatedAt?: string;
 };
 
 export type ChatMessage = {

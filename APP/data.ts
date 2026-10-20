@@ -1,4 +1,4 @@
-import { AuthAccount, Deck, Patient, TabDefinition, TabKey, TherapyCard } from "./types";
+import type { AuthAccount, CardClassification, Deck, Patient, TabDefinition, TabKey, Theme, TherapyCard } from "./types";
 
 export const tabs: TabDefinition[] = [
   { id: "cadastro", label: "Cadastro", icon: "ID" },
@@ -44,6 +44,12 @@ export const initialPatients: Patient[] = [
 
 export const authAccounts: AuthAccount[] = [
   {
+    role: "admin",
+    name: "Administrador",
+    email: "admin@therapy.com",
+    password: "123456"
+  },
+  {
     role: "therapist",
     name: "Dra. Helena Vasconcelos",
     email: "terapeuta@therapy.com",
@@ -58,25 +64,38 @@ export const authAccounts: AuthAccount[] = [
   }))
 ];
 
+export const classifications: CardClassification[] = [
+  "Conhecer", "Identificar", "Explorar", "Aprofundar", "Refletir", "Construir", "Encerrar"
+];
+
+export const themes: Theme[] = [
+  { id: "t-ansiedade", name: "Ansiedade", description: "Percepção dos sinais e recursos diante da ansiedade." },
+  { id: "t-depressao", name: "Depressão", description: "Humor, rotina e possibilidades de movimento." },
+  { id: "t-autocuidado", name: "Autocuidado", description: "Necessidades, limites e práticas cotidianas." }
+];
+
 export const decks: Deck[] = [
   {
     id: "ansiedade",
+    themeId: "t-ansiedade",
     name: "Ansiedade II",
     description: "Perguntas para identificar corpo, pensamento, evitação e recursos."
   },
   {
     id: "depressao",
+    themeId: "t-depressao",
     name: "Depressão",
     description: "Cartas para energia, rotina, valores e pequenos movimentos."
   },
   {
     id: "autocuidado",
+    themeId: "t-autocuidado",
     name: "Autocuidado",
     description: "Práticas breves de cuidado diário e percepção de necessidades."
   }
 ];
 
-export const cards: TherapyCard[] = [
+const demoCards: Omit<TherapyCard, "classification">[] = [
   {
     id: "a1",
     deckId: "ansiedade",
@@ -225,3 +244,9 @@ export const cards: TherapyCard[] = [
     prompt: "Qual pedido simples você poderia fazer para não carregar tudo sozinho?"
   }
 ];
+
+// The demo has seven cards per deck; these labels are sample metadata, not imported clinical content.
+export const cards: TherapyCard[] = demoCards.map((card, index) => ({
+  ...card,
+  classification: classifications[index % classifications.length]
+}));

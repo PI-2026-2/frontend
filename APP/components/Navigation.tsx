@@ -13,7 +13,11 @@ export function TopBar({ session, patient, onLogout }: {
       <View>
         <Text style={styles.appTitle}>Therapy Portal</Text>
         <Text style={styles.appSubtitle}>
-          {session.role === "therapist" ? `Terapeuta: ${session.name}` : `Paciente: ${patient.name}`}
+          {session.role === "admin"
+            ? `Administrador: ${session.name}`
+            : session.role === "therapist"
+              ? `Terapeuta: ${session.name}`
+              : `Paciente: ${patient.name}`}
         </Text>
       </View>
       <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>

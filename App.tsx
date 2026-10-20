@@ -9,11 +9,12 @@ import { PatientsScreen } from "./APP/screens/PatientsScreen";
 import { RecordScreen } from "./APP/screens/RecordScreen";
 import { RegistrationScreen } from "./APP/screens/RegistrationScreen";
 import { palette, styles } from "./APP/styles";
-import { AuthSession, ChatMessage, ClinicalNote, Patient, Program, ResponseRecord, TabKey } from "./APP/types";
+import { AuthAccount, AuthSession, ChatMessage, ClinicalNote, Patient, Program, ResponseRecord, TabKey } from "./APP/types";
 import { getTodayLabel } from "./APP/utils";
 
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
+  const [accounts, setAccounts] = useState<AuthAccount[]>(authAccounts);
   const [activeTab, setActiveTab] = useState<TabKey>("cadastro");
   const [patients, setPatients] = useState(initialPatients);
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatients[0].id);
@@ -40,7 +41,7 @@ export default function App() {
   const [notifications, setNotifications] = useState<string[]>([]);
 
   function login(email: string, password: string) {
-    const account = authAccounts.find(
+    const account = accounts.find(
       (item) => item.email.toLowerCase() === email.trim().toLowerCase() && item.password === password
     );
 
@@ -66,17 +67,40 @@ export default function App() {
     setOpenRecordPatientId(null);
   }
 
-  function addPatient(patient: Patient) {
+  function addPatient(patient: Patient, password: string): string | null {
+    if (!session || session.role === "patient") return "Acesso não permitido.";
+    const email = patient.email.trim().toLowerCase();
+    if (accounts.some((account) => account.email.toLowerCase() === email)) {
+      return "Este e-mail já está cadastrado.";
+    }
+    setAccounts((current) => [...current, {
+      role: "patient",
+      name: patient.name,
+      email,
+      password,
+      patientId: patient.id
+    }]);
     setPatients((current) => [patient, ...current]);
     setSelectedPatientId(patient.id);
     setOpenRecordPatientId(patient.id);
     setActiveTab("pacientes");
+    return null;
+  }
+
+  function addAdmin(name: string, email: string, password: string): string | null {
+    if (session?.role !== "admin") return "Apenas administradores podem criar este perfil.";
+    const normalizedEmail = email.trim().toLowerCase();
+    if (accounts.some((account) => account.email.toLowerCase() === normalizedEmail)) {
+      return "Este e-mail já está cadastrado.";
+    }
+    setAccounts((current) => [...current, { role: "admin", name: name.trim(), email: normalizedEmail, password }]);
+    return null;
   }
 
   if (!session) return <LoginScreen onLogin={login} />;
 
   const actor = session.role;
-  const availableTabs = tabs.filter((tab) => actor === "therapist" || patientTabs.includes(tab.id));
+  const availableTabs = tabs.filter((tab) => actor !== "patient" || patientTabs.includes(tab.id));
   const currentTab = actor === "patient" && !patientTabs.includes(activeTab) ? "mensagens" : activeTab;
   const selectedPatient = patients.find((patient) => patient.id === selectedPatientId) ?? patients[0];
   const recordPatient = patients.find((patient) => patient.id === openRecordPatientId);
@@ -91,14 +115,24 @@ export default function App() {
     setOpenRecordPatientId(patientId);
   }
 
-  function saveClinicalNote(text: string) {
+  function saveClinicalNote(title: string, text: string) {
     if (!recordPatient) return;
     setClinicalNotes((current) => [{
       id: `n${Date.now()}`,
       patientId: recordPatient.id,
+      title,
       text,
       createdAt: new Date().toISOString()
     }, ...current]);
+  }
+
+  function updateClinicalNote(noteId: string, title: string, text: string) {
+    if (!recordPatient) return;
+    setClinicalNotes((current) => current.map((note) =>
+      note.id === noteId && note.patientId === recordPatient.id
+        ? { ...note, title, text, updatedAt: new Date().toISOString() }
+        : note
+    ));
   }
 
   function addResponse(response: ResponseRecord) {
@@ -125,7 +159,12 @@ export default function App() {
         <TopBar session={session} patient={selectedPatient} onLogout={logout} />
         <View style={styles.content}>
           {currentTab === "cadastro" ? (
-            <RegistrationScreen actor={actor} onAddPatient={addPatient} patients={patients} />
+            <RegistrationScreen
+              actor={actor}
+              onAddPatient={addPatient}
+              onAddAdmin={addAdmin}
+              patients={patients}
+            />
           ) : null}
           {currentTab === "pacientes" ? (
             recordPatient ? (
@@ -135,6 +174,7 @@ export default function App() {
                 notes={clinicalNotes}
                 onBack={() => setOpenRecordPatientId(null)}
                 onSaveNote={saveClinicalNote}
+                onUpdateNote={updateClinicalNote}
               />
             ) : (
               <PatientsScreen
@@ -149,7 +189,6 @@ export default function App() {
               messages={messages}
               patient={selectedPatient}
               patients={patients}
-              selectedPatientId={selectedPatientId}
               onSelectPatient={setSelectedPatientId}
               onSendMessage={(text) =>
                 setMessages((current) => [
