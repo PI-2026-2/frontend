@@ -10,7 +10,8 @@
     "android": "expo start --android --port 8082",
     "ios": "expo start --ios --port 8082",
     "web": "expo start --web --port 8082",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:catalog": "node --test tests/catalog.test.cjs"
   },
   "dependencies": {
     "expo": "~54.0.0",
