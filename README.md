@@ -25,14 +25,12 @@ npm install
 npm run start
 ```
 
-Depois, abra o QR Code no Expo Go.
+Copie `.env.example` para `.env` e defina `EXPO_PUBLIC_API_URL` com a URL alcançável do backend (sem barra final). No Expo Go em um telefone, use o IP local do computador; `localhost` aponta para o próprio telefone. No emulador Android, use `http://10.0.2.2:8000`. Inicie o backend antes de abrir o QR Code.
 
-## Acessos de teste
+## Autenticação
 
-- Administrador: `admin@therapy.com` / `123456`
-- Terapeuta: `terapeuta@therapy.com` / `123456`
-- Paciente: `rafaela@email.com` / `123456`
+Crie uma conta de terapeuta ou paciente na tela inicial e entre com o e-mail e a senha cadastrados. O login e o cadastro usam `POST /login` e `POST /cadastro` do backend. Um terapeuta também pode cadastrar pacientes pela aba Cadastro. O administrador não pode ser criado pela interface porque a API de cadastro aceita apenas terapeuta e paciente.
 
-O cadastro de paciente cria um login com o e-mail e a senha informados. Somente um administrador pode criar outro administrador. A lista de mensagens mostra até cinco conversas recentes; a busca encontra pacientes fora dessa lista. As evoluções clínicas têm título, edição e busca.
+A lista de mensagens mostra até cinco conversas recentes; a busca encontra pacientes fora dessa lista. As evoluções clínicas têm título, edição e busca.
 
-Este protótipo mantém contas, pacientes, mensagens e evoluções apenas na memória. Ao reiniciar ou atualizar o app, os dados criados voltam ao estado inicial; ainda não há autenticação ou banco de dados de produção.
+O backend persiste as contas cadastradas. A lista de pacientes exibida pelo aplicativo, seus dados clínicos, mensagens, programas e evoluções ainda são dados de demonstração ou dados mantidos somente na memória. Cadastros novos aparecem na lista durante a sessão atual, mas não serão recarregados após reiniciar o app até que existam endpoints de listagem e prontuário. O token de login fica somente na memória do aplicativo.

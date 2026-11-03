@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { SafeAreaView, StatusBar, View } from "react-native";
 import { BottomTabs, TopBar } from "./APP/components/Navigation";
-import { authAccounts, cards, initialPatients, patientTabs, tabs } from "./APP/data";
+import { cards, initialPatients, patientTabs, tabs } from "./APP/data";
+import { login as apiLogin, register as apiRegister, RegistrationPayload } from "./APP/api";
 import { GameScreen } from "./APP/screens/GameScreen";
 import { LoginScreen } from "./APP/screens/LoginScreen";
 import { MessagesScreen } from "./APP/screens/MessagesScreen";
@@ -9,12 +10,11 @@ import { PatientsScreen } from "./APP/screens/PatientsScreen";
 import { RecordScreen } from "./APP/screens/RecordScreen";
 import { RegistrationScreen } from "./APP/screens/RegistrationScreen";
 import { palette, styles } from "./APP/styles";
-import { AuthAccount, AuthSession, ChatMessage, ClinicalNote, Patient, Program, ResponseRecord, TabKey } from "./APP/types";
+import { AuthSession, ChatMessage, ClinicalNote, Patient, Program, ResponseRecord, TabKey } from "./APP/types";
 import { getTodayLabel } from "./APP/utils";
 
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [accounts, setAccounts] = useState<AuthAccount[]>(authAccounts);
   const [activeTab, setActiveTab] = useState<TabKey>("cadastro");
   const [patients, setPatients] = useState(initialPatients);
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatients[0].id);
@@ -40,24 +40,26 @@ export default function App() {
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
   const [notifications, setNotifications] = useState<string[]>([]);
 
-  function login(email: string, password: string) {
-    const account = accounts.find(
-      (item) => item.email.toLowerCase() === email.trim().toLowerCase() && item.password === password
-    );
-
-    if (!account) return false;
-
-    const { password: _password, ...nextSession } = account;
+  async function login(email: string, password: string) {
+    const result = await apiLogin(email, password);
+    const user = result.usuario;
+    const role: AuthSession["role"] = user.tipo_usuario === "PACIENTE"
+      ? "patient" : user.tipo_usuario === "TERAPEUTA" ? "therapist" : "admin";
+    const patientId = role === "patient" ? `u${user.id}` : undefined;
+    const nextSession: AuthSession = { role, name: user.nome_completo, email: user.email,
+      accessToken: result.token.access_token, patientId };
     setSession(nextSession);
 
-    if (account.role === "patient" && account.patientId) {
-      setSelectedPatientId(account.patientId);
+    if (patientId) {
+      setPatients((current) => current.some((item) => item.id === patientId)
+        ? current : [{ id: patientId, name: user.nome_completo, email: user.email,
+          age: 0, phone: "", diagnosis: "", goal: "", risk: "baixo" }, ...current]);
+      setSelectedPatientId(patientId);
       setActiveTab("mensagens");
     } else {
       setActiveTab("cadastro");
     }
 
-    return true;
   }
 
   function logout() {
@@ -67,19 +69,15 @@ export default function App() {
     setOpenRecordPatientId(null);
   }
 
-  function addPatient(patient: Patient, password: string): string | null {
+  async function addPatient(payload: RegistrationPayload, diagnosis: string, goal: string): Promise<string | null> {
     if (!session || session.role === "patient") return "Acesso não permitido.";
-    const email = patient.email.trim().toLowerCase();
-    if (accounts.some((account) => account.email.toLowerCase() === email)) {
-      return "Este e-mail já está cadastrado.";
-    }
-    setAccounts((current) => [...current, {
-      role: "patient",
-      name: patient.name,
-      email,
-      password,
-      patientId: patient.id
-    }]);
+    const registered = await apiRegister(payload);
+    const patient: Patient = {
+      id: `u${registered.id}`, name: registered.nome, email: registered.email,
+      age: Math.max(0, new Date().getFullYear() - Number(payload.data_nascimento.slice(0, 4))),
+      phone: payload.telefone, diagnosis: diagnosis || "Prontuário inicial",
+      goal: goal || "Definir objetivos terapêuticos na próxima sessão.", risk: "baixo"
+    };
     setPatients((current) => [patient, ...current]);
     setSelectedPatientId(patient.id);
     setOpenRecordPatientId(patient.id);
@@ -87,17 +85,7 @@ export default function App() {
     return null;
   }
 
-  function addAdmin(name: string, email: string, password: string): string | null {
-    if (session?.role !== "admin") return "Apenas administradores podem criar este perfil.";
-    const normalizedEmail = email.trim().toLowerCase();
-    if (accounts.some((account) => account.email.toLowerCase() === normalizedEmail)) {
-      return "Este e-mail já está cadastrado.";
-    }
-    setAccounts((current) => [...current, { role: "admin", name: name.trim(), email: normalizedEmail, password }]);
-    return null;
-  }
-
-  if (!session) return <LoginScreen onLogin={login} />;
+  if (!session) return <LoginScreen onLogin={login} onRegister={apiRegister} />;
 
   const actor = session.role;
   const availableTabs = tabs.filter((tab) => actor !== "patient" || patientTabs.includes(tab.id));
@@ -162,7 +150,6 @@ export default function App() {
             <RegistrationScreen
               actor={actor}
               onAddPatient={addPatient}
-              onAddAdmin={addAdmin}
               patients={patients}
             />
           ) : null}

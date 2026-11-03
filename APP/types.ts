@@ -13,11 +13,8 @@ export type AuthSession = {
   role: Actor;
   name: string;
   email: string;
+  accessToken: string;
   patientId?: string;
-};
-
-export type AuthAccount = AuthSession & {
-  password: string;
 };
 
 export type Patient = {
