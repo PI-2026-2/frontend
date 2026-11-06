@@ -2,12 +2,15 @@ import React, { useState } from "react";
 import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import { drawCard, RandomParts } from "../catalog";
 import { PrimaryButton, Screen } from "../components/UI";
-import { cards, classifications, decks, themes } from "../data";
+import { classifications } from "../data";
 import { palette, styles } from "../styles";
-import { CardClassification, TherapyCard } from "../types";
+import { CardClassification, Deck, Theme, TherapyCard } from "../types";
 
 export function RandomScreen({
   patientName,
+  cards,
+  decks,
+  themes,
   initialThemeId,
   initialDeckId,
   initialClassification,
@@ -15,6 +18,9 @@ export function RandomScreen({
   onUseCard
 }: {
   patientName: string;
+  cards: TherapyCard[];
+  decks: Deck[];
+  themes: Theme[];
   initialThemeId: string;
   initialDeckId: string;
   initialClassification: CardClassification | null;
@@ -27,6 +33,7 @@ export function RandomScreen({
   const [parts, setParts] = useState<RandomParts>({ theme: false, deck: false, card: true, classification: false });
   const [result, setResult] = useState<TherapyCard | null>(null);
   const [drawAttempted, setDrawAttempted] = useState(false);
+  const filterClassifications = [...new Set<CardClassification>([...classifications, ...cards.map((card) => card.classification)])];
   const themeDecks = decks.filter((deck) => deck.themeId === themeId);
 
   function togglePart(part: keyof RandomParts) {
@@ -107,7 +114,7 @@ export function RandomScreen({
           <>
             <Text style={styles.inputLabel}>Classificação</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catalogFilters}>
-              {([null, ...classifications] as (CardClassification | null)[]).map((item) => (
+              {([null, ...filterClassifications] as (CardClassification | null)[]).map((item) => (
                 <TouchableOpacity key={item ?? "all"} style={[styles.filterChip, classification === item && styles.filterChipActive]} onPress={() => { setClassification(item); setResult(null); setDrawAttempted(false); }}>
                   <Text style={[styles.filterChipText, classification === item && styles.filterChipTextActive]}>{item ?? "Todas"}</Text>
                 </TouchableOpacity>

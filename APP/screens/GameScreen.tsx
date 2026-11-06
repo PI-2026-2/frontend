@@ -2,9 +2,9 @@ import React, { useMemo, useState } from "react";
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { findCards, pickDailyCards } from "../catalog";
 import { EmptyState, Input, PatientPicker, PrimaryButton, Screen, SecondaryButton, Section, SegmentButton } from "../components/UI";
-import { cards, classifications, decks, themes } from "../data";
+import { classifications } from "../data";
 import { styles } from "../styles";
-import { Actor, CardClassification, GameMode, Patient, Program, ResponseRecord, TherapyCard } from "../types";
+import { Actor, CardClassification, Deck, GameMode, Patient, Program, ResponseRecord, Theme, TherapyCard } from "../types";
 import { getProgramDayIndex } from "../utils";
 import { RandomScreen } from "./RandomScreen";
 
@@ -18,6 +18,9 @@ export function GameScreen({
   programs,
   responses,
   selectedPatientId,
+  cards,
+  decks,
+  themes,
   onAddProgram,
   onAddResponse,
   onSelectPatient
@@ -29,8 +32,11 @@ export function GameScreen({
   programs: Program[];
   responses: ResponseRecord[];
   selectedPatientId: string;
-  onAddProgram: (program: Program) => void;
-  onAddResponse: (response: ResponseRecord) => void;
+  cards: TherapyCard[];
+  decks: Deck[];
+  themes: Theme[];
+  onAddProgram: (program: Program) => Promise<void>;
+  onAddResponse: (response: ResponseRecord) => Promise<void>;
   onSelectPatient: (patientId: string) => void;
 }) {
   const [mode, setMode] = useState<GameMode>("daily");
@@ -45,6 +51,7 @@ export function GameScreen({
   const [patientAnswer, setPatientAnswer] = useState("");
   const [sessionNote, setSessionNote] = useState("");
   const [feedback, setFeedback] = useState("");
+  const filterClassifications = [...new Set<CardClassification>([...classifications, ...cards.map((card) => card.classification)])];
 
   const selectedCards = selectedCardIds.map((id) => cards.find((card) => card.id === id)).filter((card): card is TherapyCard => Boolean(card));
   const patientProgram = programs.find((program) => program.patientId === patient.id);
@@ -98,50 +105,63 @@ export function GameScreen({
     setFeedback("7 cartas sorteadas deste baralho.");
   }
 
-  function configureDailyProgram() {
+  async function configureDailyProgram() {
     if (selectedCards.length !== 7 || new Set(selectedCards.map((card) => card.deckId)).size !== 1 ||
       new Set(selectedCards.map((card) => card.theme)).size !== 7) return;
-    onAddProgram({
-      id: `g${Date.now()}`,
-      patientId: patient.id,
-      cardIds: selectedCardIds,
-      startedAt: new Date().toISOString()
-    });
-    setFeedback(`Jogo de 7 dias configurado para ${patient.name}.`);
+    try {
+      await onAddProgram({
+        id: `g${Date.now()}`,
+        patientId: patient.id,
+        cardIds: selectedCardIds,
+        startedAt: new Date().toISOString()
+      });
+      setFeedback(`Jogo de 7 dias configurado para ${patient.name}.`);
+    } catch (error) { setFeedback(error instanceof Error ? error.message : "Erro ao configurar jogo."); }
   }
 
-  function submitPatientAnswer() {
+  async function submitPatientAnswer() {
     if (!cardOfDay || !patientAnswer.trim()) return;
-    onAddResponse({
-      id: `r${Date.now()}`,
-      patientId: patient.id,
-      cardId: cardOfDay.id,
-      mode: "daily",
-      answer: patientAnswer.trim(),
-      createdAt: new Date().toISOString()
-    });
-    setPatientAnswer("");
+    try {
+      await onAddResponse({
+        id: `r${Date.now()}`,
+        patientId: patient.id,
+        cardId: cardOfDay.id,
+        mode: "daily",
+        answer: patientAnswer.trim(),
+        createdAt: new Date().toISOString()
+      });
+      setPatientAnswer("");
+    } catch (error) { setFeedback(error instanceof Error ? error.message : "Erro ao enviar resposta."); }
   }
 
-  function saveSessionResponse() {
+  async function saveSessionResponse() {
     const card = selectedCards[0];
     if (!card || !sessionNote.trim()) return;
-    onAddResponse({
-      id: `r${Date.now()}`,
-      patientId: patient.id,
-      cardId: card.id,
-      mode: "session",
-      answer: sessionNote.trim(),
-      note: "Registrado pelo terapeuta durante a sessão.",
-      createdAt: new Date().toISOString()
-    });
-    setSessionNote("");
-    setFeedback("Resposta da sessão salva.");
+    try {
+      await onAddResponse({
+        id: `r${Date.now()}`,
+        patientId: patient.id,
+        cardId: card.id,
+        mode: "session",
+        answer: sessionNote.trim(),
+        note: "Registrado pelo terapeuta durante a sessão.",
+        createdAt: new Date().toISOString()
+      });
+      setSessionNote("");
+      setFeedback("Resposta da sessão salva.");
+    } catch (error) { setFeedback(error instanceof Error ? error.message : "Erro ao salvar resposta."); }
+  }
+
+  if (cards.length === 0 || decks.length === 0 || themes.length === 0) {
+    return <Screen title="Jogo de cartas" eyebrow="Catálogo"><EmptyState text="Nenhuma carta disponível. Importe o catálogo no backend." /></Screen>;
   }
 
   if (actor !== "patient" && view === "random") {
     return (
       <RandomScreen
+        cards={cards}
+        decks={decks}
+        themes={themes}
         patientName={patient.name}
         initialThemeId={themeId ?? themes[0].id}
         initialDeckId={deckId ?? decks.find((deck) => deck.themeId === themeId)?.id ?? decks[0].id}
@@ -267,7 +287,7 @@ export function GameScreen({
                 </ScrollView>
                 <Text style={styles.inputLabel}>Classificação</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catalogFilters}>
-                  {([null, ...classifications] as (CardClassification | null)[]).map((item) => (
+                  {([null, ...filterClassifications] as (CardClassification | null)[]).map((item) => (
                     <TouchableOpacity key={item ?? "all"} style={[styles.filterChip, classification === item && styles.filterChipActive]} onPress={() => { setClassification(item); setVisibleCount(30); }}>
                       <Text style={[styles.filterChipText, classification === item && styles.filterChipTextActive]}>{item ?? "Todas"}</Text>
                     </TouchableOpacity>
@@ -331,9 +351,10 @@ export function GameScreen({
                 <Text style={styles.bigCardPrompt}>{cardOfDay.prompt}</Text>
               </View>
               <Input label="Sua resposta" value={patientAnswer} onChangeText={setPatientAnswer} placeholder="Escreva como isso aparece para você hoje." multiline />
+              {feedback ? <Text style={styles.helperText}>{feedback}</Text> : null}
               <PrimaryButton label={alreadyAnsweredToday ? "Enviar nova resposta" : "Enviar resposta"} onPress={submitPatientAnswer} disabled={!patientAnswer.trim()} />
             </>
-          ) : <EmptyState text="Seu terapeuta ainda não configurou um jogo de 7 dias." />}
+          ) : <EmptyState text={patientProgram ? "O jogo de 7 dias foi concluído." : "Seu terapeuta ainda não configurou um jogo de 7 dias."} />}
         </Section>
       )}
     </Screen>

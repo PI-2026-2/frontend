@@ -1,11 +1,9 @@
 import { Patient } from "./types";
 
 export function getProgramDayIndex(startedAt: string) {
-  const start = new Date(startedAt);
-  const elapsedMs = new Date().getTime() - start.getTime();
-  const elapsedDays = Math.floor(elapsedMs / 86_400_000);
-
-  return Math.min(6, Math.max(0, elapsedDays));
+  const start = new Date(startedAt).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  return Math.round((Date.parse(today) - Date.parse(start)) / 86_400_000);
 }
 
 export function getTodayLabel() {

@@ -20,6 +20,7 @@ export function LoginScreen({ onLogin, onRegister }: {
   const [gender, setGender] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [role, setRole] = useState<RegistrationPayload["tipo"]>("TERAPEUTA");
+  const [therapistEmail, setTherapistEmail] = useState("");
 
   async function submit() {
     setError(""); setSuccess("");
@@ -35,12 +36,16 @@ export function LoginScreen({ onLogin, onRegister }: {
       if (password.length < 6 || password !== confirmation) {
         setError("A senha deve ter ao menos 6 caracteres e coincidir com a confirmação."); return;
       }
+      if (role === "PACIENTE" && !/^\S+@\S+\.\S+$/.test(therapistEmail.trim())) {
+        setError("Informe o e-mail do terapeuta responsável."); return;
+      }
     }
     setPending(true);
     try {
       if (registering) {
         await onRegister({ nome: name.trim(), email: email.trim().toLowerCase(), senha: password,
-          telefone: phone.trim(), data_nascimento: birthDate, genero: gender.trim(), tipo: role });
+          telefone: phone.trim(), data_nascimento: birthDate, genero: gender.trim(), tipo: role,
+          ...(role === "PACIENTE" ? { terapeuta_email: therapistEmail.trim().toLowerCase() } : {}) });
         setRegistering(false);
         setSuccess("Cadastro concluído. Entre com seu e-mail e senha.");
       } else {
@@ -94,6 +99,7 @@ export function LoginScreen({ onLogin, onRegister }: {
               <Input label="Telefone" value={phone} onChangeText={setPhone} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
               <Input label="Data de nascimento" value={birthDate} onChangeText={setBirthDate} placeholder="AAAA-MM-DD" />
               <Input label="Gênero" value={gender} onChangeText={setGender} placeholder="Como se identifica" />
+              {role === "PACIENTE" ? <Input label="E-mail do terapeuta" value={therapistEmail} onChangeText={setTherapistEmail} placeholder="terapeuta@email.com" keyboardType="email-address" autoCapitalize="none" /> : null}
             </>
           ) : null}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}

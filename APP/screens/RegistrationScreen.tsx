@@ -64,7 +64,7 @@ export function RegistrationScreen({ actor, onAddPatient, patients }: {
         <Input label="Senha de acesso" value={password} onChangeText={setPassword} placeholder="Pelo menos 6 caracteres" secureTextEntry autoCapitalize="none" />
         <Input label="Confirmar senha" value={confirmation} onChangeText={setConfirmation} placeholder="Repita a senha" secureTextEntry autoCapitalize="none" />
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        <PrimaryButton label={pending ? "Salvando..." : "Salvar cadastro"} onPress={submit} disabled={pending || actor === "patient"} />
+        <PrimaryButton label={pending ? "Salvando..." : "Salvar cadastro"} onPress={submit} disabled={pending || actor !== "therapist"} />
       </Section>
       <Section title="Últimos pacientes criados nesta sessão">
         {patients.slice(0, 5).map((patient) => (

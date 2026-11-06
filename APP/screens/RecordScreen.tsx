@@ -1,9 +1,8 @@
 import React, { useState } from "react";
 import { Text, TextInput, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { EmptyState, Input, PrimaryButton, Screen } from "../components/UI";
-import { cards } from "../data";
 import { styles } from "../styles";
-import { ClinicalNote, Patient, ResponseRecord } from "../types";
+import { ClinicalNote, Patient, ResponseRecord, TherapyCard } from "../types";
 import { getPatientDisplayId } from "../utils";
 
 function RecordField({ label, value, wide }: { label: string; value: string; wide: boolean }) {
@@ -15,13 +14,14 @@ function RecordField({ label, value, wide }: { label: string; value: string; wid
   );
 }
 
-export function RecordScreen({ patient, responses, notes, onBack, onSaveNote, onUpdateNote }: {
+export function RecordScreen({ patient, responses, notes, cards, onBack, onSaveNote, onUpdateNote }: {
   patient: Patient;
   responses: ResponseRecord[];
   notes: ClinicalNote[];
+  cards: TherapyCard[];
   onBack: () => void;
-  onSaveNote: (title: string, text: string) => void;
-  onUpdateNote: (noteId: string, title: string, text: string) => void;
+  onSaveNote: (title: string, text: string) => Promise<void>;
+  onUpdateNote: (noteId: string, title: string, text: string) => Promise<void>;
 }) {
   const [noteTitle, setNoteTitle] = useState("");
   const [note, setNote] = useState("");
@@ -29,6 +29,7 @@ export function RecordScreen({ patient, responses, notes, onBack, onSaveNote, on
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [editingText, setEditingText] = useState("");
+  const [error, setError] = useState("");
   const { width } = useWindowDimensions();
   const wide = width >= 720;
   const patientResponses = responses.filter((response) => response.patientId === patient.id);
@@ -40,11 +41,13 @@ export function RecordScreen({ patient, responses, notes, onBack, onSaveNote, on
     normalize(`${item.title} ${item.text}`).includes(searchTerm)
   );
 
-  function saveNote() {
+  async function saveNote() {
     if (!noteTitle.trim() || !note.trim()) return;
-    onSaveNote(noteTitle.trim(), note.trim());
-    setNoteTitle("");
-    setNote("");
+    try {
+      setError("");
+      await onSaveNote(noteTitle.trim(), note.trim());
+      setNoteTitle(""); setNote("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Erro ao salvar evolução."); }
   }
 
   function beginEditing(item: ClinicalNote) {
@@ -53,10 +56,13 @@ export function RecordScreen({ patient, responses, notes, onBack, onSaveNote, on
     setEditingText(item.text);
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!editingNoteId || !editingTitle.trim() || !editingText.trim()) return;
-    onUpdateNote(editingNoteId, editingTitle.trim(), editingText.trim());
-    setEditingNoteId(null);
+    try {
+      setError("");
+      await onUpdateNote(editingNoteId, editingTitle.trim(), editingText.trim());
+      setEditingNoteId(null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Erro ao alterar evolução."); }
   }
 
   return (
@@ -113,6 +119,7 @@ export function RecordScreen({ patient, responses, notes, onBack, onSaveNote, on
 
         <View style={styles.recordSection}>
           <Text style={styles.recordSectionTitle}>Evolução da sessão</Text>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
           <Input
             label="Título da anotação"
             value={noteTitle}
