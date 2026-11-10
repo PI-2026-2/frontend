@@ -11,6 +11,7 @@
     "ios": "expo start --ios --port 8082",
     "web": "expo start --web --port 8082",
     "typecheck": "tsc --noEmit",
+    "test": "node --test tests/api.test.cjs tests/catalog.test.cjs tests/game-flow.test.cjs",
     "test:catalog": "node --test tests/catalog.test.cjs"
   },
   "dependencies": {

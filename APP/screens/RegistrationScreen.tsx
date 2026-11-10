@@ -1,119 +1,72 @@
 import React, { useState } from "react";
-import { Text, View } from "react-native";
-import { Input, PatientRow, PrimaryButton, Screen, Section, SegmentButton } from "../components/UI";
+import { Text } from "react-native";
+import { RegistrationPayload } from "../api";
+import { Input, PatientRow, PrimaryButton, Screen, Section } from "../components/UI";
 import { styles } from "../styles";
 import { Actor, Patient } from "../types";
 
-type RegistrationMode = "patient" | "admin";
-
-export function RegistrationScreen({ actor, onAddPatient, onAddAdmin, patients }: {
+export function RegistrationScreen({ actor, onAddPatient, patients }: {
   actor: Actor;
-  onAddPatient: (patient: Patient, password: string) => string | null;
-  onAddAdmin: (name: string, email: string, password: string) => string | null;
+  onAddPatient: (payload: RegistrationPayload, diagnosis: string, goal: string) => Promise<string | null>;
   patients: Patient[];
 }) {
-  const [mode, setMode] = useState<RegistrationMode>("patient");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [gender, setGender] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [goal, setGoal] = useState("");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [pending, setPending] = useState(false);
 
-  function changeMode(nextMode: RegistrationMode) {
-    setMode(nextMode);
+  async function submit() {
     setError("");
-    setSuccess("");
-    setName("");
-    setEmail("");
-    setPassword("");
-    setConfirmation("");
-  }
-
-  function submit() {
-    setError("");
-    setSuccess("");
-    const cleanName = name.trim();
     const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanName || !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
-      setError("Informe nome e e-mail válidos.");
-      return;
+    if (!name.trim() || !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      setError("Informe nome e e-mail válidos."); return;
     }
-    if (password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
-      return;
+    if (password.length < 6 || password !== confirmation) {
+      setError("A senha deve ter ao menos 6 caracteres e coincidir com a confirmação."); return;
     }
-    if (password !== confirmation) {
-      setError("As senhas não coincidem.");
-      return;
+    if (!phone.trim() || !gender.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate) ||
+        Number.isNaN(new Date(`${birthDate}T00:00:00`).getTime())) {
+      setError("Informe telefone, gênero e nascimento no formato AAAA-MM-DD."); return;
     }
-
-    if (mode === "admin") {
-      const result = onAddAdmin(cleanName, cleanEmail, password);
-      if (result) {
-        setError(result);
-        return;
-      }
-      setSuccess("Administrador criado.");
-    } else {
-      const result = onAddPatient({
-        id: `p${Date.now()}`,
-        name: cleanName,
-        age: 30,
-        diagnosis: diagnosis.trim() || "Prontuário inicial",
-        risk: "baixo",
-        goal: goal.trim() || "Definir objetivos terapêuticos na próxima sessão.",
-        phone: phone.trim() || "(00) 00000-0000",
-        email: cleanEmail
-      }, password);
-      if (result) {
-        setError(result);
-        return;
-      }
-      setPhone("");
-      setDiagnosis("");
-      setGoal("");
+    setPending(true);
+    try {
+      const result = await onAddPatient({
+        nome: name.trim(), email: cleanEmail, senha: password, telefone: phone.trim(),
+        data_nascimento: birthDate, genero: gender.trim(), tipo: "PACIENTE"
+      }, diagnosis.trim(), goal.trim());
+      if (result) { setError(result); return; }
+      setName(""); setEmail(""); setPassword(""); setConfirmation("");
+      setPhone(""); setBirthDate(""); setGender(""); setDiagnosis(""); setGoal("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível cadastrar o paciente.");
+    } finally {
+      setPending(false);
     }
-
-    setName("");
-    setEmail("");
-    setPassword("");
-    setConfirmation("");
   }
 
   return (
     <Screen title="Cadastro" eyebrow="Acesso e vínculo terapêutico">
-      {actor === "admin" ? (
-        <Section title="Tipo de perfil">
-          <View style={styles.segmentRow}>
-            <SegmentButton label="Paciente" active={mode === "patient"} onPress={() => changeMode("patient")} />
-            <SegmentButton label="Administrador" active={mode === "admin"} onPress={() => changeMode("admin")} />
-          </View>
-        </Section>
-      ) : null}
-
-      <Section title={mode === "admin" ? "Criar administrador" : "Cadastrar paciente"}>
+      <Section title="Cadastrar paciente">
         <Input label="Nome completo" value={name} onChangeText={setName} placeholder="Nome completo" />
         <Input label="E-mail de acesso" value={email} onChangeText={setEmail} placeholder="nome@email.com" keyboardType="email-address" autoCapitalize="none" />
-        {mode === "patient" ? (
-          <>
-            <Input label="Telefone" value={phone} onChangeText={setPhone} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
-            <Input label="Hipótese / demanda inicial" value={diagnosis} onChangeText={setDiagnosis} placeholder="Ex.: ansiedade, rotina, luto" />
-            <Input label="Objetivo inicial" value={goal} onChangeText={setGoal} placeholder="Meta breve para o cuidado" multiline />
-          </>
-        ) : null}
+        <Input label="Telefone" value={phone} onChangeText={setPhone} placeholder="(00) 00000-0000" keyboardType="phone-pad" />
+        <Input label="Data de nascimento" value={birthDate} onChangeText={setBirthDate} placeholder="AAAA-MM-DD" />
+        <Input label="Gênero" value={gender} onChangeText={setGender} placeholder="Como se identifica" />
+        <Input label="Hipótese / demanda inicial" value={diagnosis} onChangeText={setDiagnosis} placeholder="Ex.: ansiedade, rotina, luto" />
+        <Input label="Objetivo inicial" value={goal} onChangeText={setGoal} placeholder="Meta breve para o cuidado" multiline />
         <Input label="Senha de acesso" value={password} onChangeText={setPassword} placeholder="Pelo menos 6 caracteres" secureTextEntry autoCapitalize="none" />
         <Input label="Confirmar senha" value={confirmation} onChangeText={setConfirmation} placeholder="Repita a senha" secureTextEntry autoCapitalize="none" />
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        {success ? <Text style={styles.successText}>{success}</Text> : null}
-        <PrimaryButton label={mode === "admin" ? "Criar administrador" : "Salvar cadastro"} onPress={submit} />
+        <PrimaryButton label={pending ? "Salvando..." : "Salvar cadastro"} onPress={submit} disabled={pending || actor !== "therapist"} />
       </Section>
-
-      <Section title="Últimos pacientes criados">
+      <Section title="Últimos pacientes criados nesta sessão">
         {patients.slice(0, 5).map((patient) => (
           <PatientRow key={patient.id} patient={patient} detail={`${patient.diagnosis} · risco ${patient.risk}`} />
         ))}

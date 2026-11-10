@@ -1,4 +1,4 @@
-import type { AuthAccount, CardClassification, Deck, Patient, TabDefinition, TabKey, Theme, TherapyCard } from "./types";
+import type { CardClassification, Deck, Patient, TabDefinition, TabKey, Theme, TherapyCard } from "./types";
 
 export const tabs: TabDefinition[] = [
   { id: "cadastro", label: "Cadastro", icon: "ID" },
@@ -40,28 +40,6 @@ export const initialPatients: Patient[] = [
     phone: "(21) 98888-1111",
     email: "maria@email.com"
   }
-];
-
-export const authAccounts: AuthAccount[] = [
-  {
-    role: "admin",
-    name: "Administrador",
-    email: "admin@therapy.com",
-    password: "123456"
-  },
-  {
-    role: "therapist",
-    name: "Dra. Helena Vasconcelos",
-    email: "terapeuta@therapy.com",
-    password: "123456"
-  },
-  ...initialPatients.map((patient) => ({
-    role: "patient" as const,
-    name: patient.name,
-    email: patient.email,
-    password: "123456",
-    patientId: patient.id
-  }))
 ];
 
 export const classifications: CardClassification[] = [

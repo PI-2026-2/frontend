@@ -1,7 +1,7 @@
 export type TabKey = "cadastro" | "pacientes" | "mensagens" | "jogo";
 export type Actor = "therapist" | "patient" | "admin";
 export type GameMode = "daily" | "session";
-export type CardClassification = "Conhecer" | "Identificar" | "Explorar" | "Aprofundar" | "Refletir" | "Construir" | "Encerrar";
+export type CardClassification = "Sem classificação" | "Conhecer" | "Identificar" | "Explorar" | "Aprofundar" | "Refletir" | "Construir" | "Encerrar";
 
 export type Theme = {
   id: string;
@@ -13,6 +13,7 @@ export type AuthSession = {
   role: Actor;
   name: string;
   email: string;
+  accessToken: string;
   patientId?: string;
 };
 

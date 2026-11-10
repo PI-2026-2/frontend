@@ -11,11 +11,13 @@ export function MessagesScreen({ actor, messages, patient, patients, onSelectPat
   patient: Patient;
   patients: Patient[];
   onSelectPatient: (patientId: string) => void;
-  onSendMessage: (text: string) => void;
+  onSendMessage: (text: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
   const [openConversation, setOpenConversation] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [sending, setSending] = useState(false);
   const conversation = messages.filter((message) => message.patientId === patient.id);
   const latestByPatient = new Map<string, { message: ChatMessage; index: number }>();
   messages.forEach((message, index) => latestByPatient.set(message.patientId, { message, index }));
@@ -30,10 +32,15 @@ export function MessagesScreen({ actor, messages, patient, patients, onSelectPat
         .map(([patientId]) => patients.find((item) => item.id === patientId))
         .filter((item): item is Patient => Boolean(item));
 
-  function send() {
+  async function send() {
     if (!draft.trim()) return;
-    onSendMessage(draft.trim());
-    setDraft("");
+    setSending(true); setSendError("");
+    try {
+      await onSendMessage(draft.trim());
+      setDraft("");
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "Erro ao enviar mensagem.");
+    } finally { setSending(false); }
   }
 
   function openPatientConversation(patientId: string) {
@@ -110,7 +117,8 @@ export function MessagesScreen({ actor, messages, patient, patients, onSelectPat
               })}
             </View>
             <Input label="Nova mensagem" value={draft} onChangeText={setDraft} placeholder="Escreva uma mensagem breve..." multiline />
-            <PrimaryButton label="Enviar mensagem" onPress={send} disabled={!draft.trim()} />
+            {sendError ? <Text style={styles.errorText}>{sendError}</Text> : null}
+            <PrimaryButton label={sending ? "Enviando..." : "Enviar mensagem"} onPress={send} disabled={!draft.trim() || sending} />
           </Section>
         </>
       )}

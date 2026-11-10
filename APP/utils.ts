@@ -3,8 +3,8 @@ import type { Patient } from "./types";
 export function getProgramDayIndex(startedAt: string, now = new Date()): number | null {
   const start = new Date(startedAt);
   if (Number.isNaN(start.getTime()) || Number.isNaN(now.getTime())) return null;
-  const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
-  const currentDay = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const startDay = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate());
+  const currentDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const elapsedDays = Math.round((currentDay - startDay) / 86_400_000);
 
   return elapsedDays >= 0 && elapsedDays < 7 ? elapsedDays : null;

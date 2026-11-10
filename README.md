@@ -14,9 +14,9 @@ O fluxo do jogo parte sempre do terapeuta escolhendo o paciente e depois as cart
 
 ## Catálogo de cartas
 
-O Jogo agora separa Tema, Baralho e Cartas. A busca das cartas combina texto, tema, baralho e as classificações Conhecer, Identificar, Explorar, Aprofundar, Refletir, Construir e Encerrar. Cada resultado mostra seu tema e baralho. O botão Aleatório abre uma tela onde se escolhe quais partes serão sorteadas; sortear um tema também exige sortear baralho e carta, para manter as relações válidas.
+O Jogo separa Tema, Baralho e Cartas. O catálogo usado no aplicativo vem de `GET /catalog`; os dados em `APP/data.ts` servem apenas aos testes locais. A busca combina texto, tema, baralho e classificação. O botão Aleatório abre uma tela onde se escolhe quais partes serão sorteadas.
 
-Os dados atuais são apenas uma demonstração: 3 temas, 3 baralhos e 21 cartas. A estrutura foi preparada para o catálogo planejado de 12 temas, 100 baralhos e 100 cartas por baralho. O esquema relacional está em `database/catalog.sql`, mas ainda não está conectado ao aplicativo. Não foram criadas milhares de cartas fictícias. Para testar as regras do catálogo, execute `npm run test:catalog`.
+As cartas importadas pelo backend aparecem como `Sem classificação` enquanto o banco não oferecer esse campo. O catálogo de demonstração contém 3 temas, 3 baralhos e 21 cartas. Para testar a integração de rotas e as regras do jogo, execute `npm test`.
 
 ## Rodar
 
@@ -25,14 +25,12 @@ npm install
 npm run start
 ```
 
-Depois, abra o QR Code no Expo Go.
+Copie `.env.example` para `.env` e configure `EXPO_PUBLIC_API_URL` com o endereço do backend. No Expo Go em um telefone, use o IP local do computador; `localhost` aponta para o próprio telefone. No emulador Android, use `http://10.0.2.2:8000`. Depois, abra o QR Code no Expo Go.
 
-## Acessos de teste
+## Integração com a API
 
-- Administrador: `admin@therapy.com` / `123456`
-- Terapeuta: `terapeuta@therapy.com` / `123456`
-- Paciente: `rafaela@email.com` / `123456`
+O frontend usa `POST /login` e `POST /cadastro` para acesso, `GET/POST /patients` para pacientes, `GET /catalog` para cartas, `GET/POST /programs` para o jogo de 7 dias e `GET/POST /responses` para respostas. Mensagens e evoluções usam as rotas `/messages`, `/conversations` e `/patients/{id}/notes`. As rotas do jogo dependem da branch `conectar-api-backend`; a `main` atual do backend ainda não as expõe.
 
-O cadastro de paciente cria um login com o e-mail e a senha informados. Somente um administrador pode criar outro administrador. A lista de mensagens mostra até cinco conversas recentes; a busca encontra pacientes fora dessa lista. As evoluções clínicas têm título, edição e busca.
+O paciente responde uma carta por dia via `POST /responses`, e o terapeuta consulta as respostas no prontuário via `GET /responses`. O backend usa a data UTC para liberar a carta do dia; o frontend segue a mesma regra. Na sessão, o terapeuta seleciona as perguntas no próprio aplicativo e registra cada resposta via `POST /responses`.
 
-Este protótipo mantém contas, pacientes, mensagens e evoluções apenas na memória. Ao reiniciar ou atualizar o app, os dados criados voltam ao estado inicial; ainda não há autenticação ou banco de dados de produção.
+Ainda não existe endpoint para salvar a seleção completa da sessão nem para editar uma resposta de sessão. A seleção permanece em memória até o aplicativo ser reiniciado; as respostas já enviadas ficam no backend e aparecem no prontuário. Por isso, a interface não oferece edição de resposta salva.

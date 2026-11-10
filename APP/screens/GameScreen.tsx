@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { AppState, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { findCards, pickDailyCards } from "../catalog";
 import { EmptyState, Input, PatientPicker, PrimaryButton, Screen, SecondaryButton, Section, SegmentButton } from "../components/UI";
-import { cards, classifications, decks, themes } from "../data";
+import { classifications } from "../data";
 import { styles } from "../styles";
-import { Actor, CardClassification, GameMode, Patient, Program, ResponseRecord, SessionGame, TherapyCard } from "../types";
+import { Actor, CardClassification, Deck, GameMode, Patient, Program, ResponseRecord, SessionGame, Theme, TherapyCard } from "../types";
 import { getProgramDayIndex } from "../utils";
 import { RandomScreen } from "./RandomScreen";
 
@@ -19,10 +19,12 @@ export function GameScreen({
   sessionGames,
   responses,
   selectedPatientId,
+  cards,
+  decks,
+  themes,
   onAddProgram,
   onAddSessionGame,
   onAddResponse,
-  onUpdateResponse,
   onSelectPatient
 }: {
   actor: Actor;
@@ -33,10 +35,12 @@ export function GameScreen({
   sessionGames: SessionGame[];
   responses: ResponseRecord[];
   selectedPatientId: string;
-  onAddProgram: (program: Program) => void;
+  cards: TherapyCard[];
+  decks: Deck[];
+  themes: Theme[];
+  onAddProgram: (program: Program) => Promise<void>;
   onAddSessionGame: (game: SessionGame) => void;
-  onAddResponse: (response: ResponseRecord) => void;
-  onUpdateResponse: (responseId: string, answer: string) => void;
+  onAddResponse: (response: ResponseRecord) => Promise<void>;
   onSelectPatient: (patientId: string) => void;
 }) {
   const [mode, setMode] = useState<GameMode>("daily");
@@ -54,6 +58,8 @@ export function GameScreen({
   const [sessionAnswer, setSessionAnswer] = useState("");
   const [feedback, setFeedback] = useState("");
   const [now, setNow] = useState(() => new Date());
+  const [saving, setSaving] = useState(false);
+  const filterClassifications = [...new Set<CardClassification>([...classifications, ...cards.map((card) => card.classification)])];
 
   useEffect(() => {
     const refresh = () => setNow(new Date());
@@ -82,7 +88,9 @@ export function GameScreen({
     : undefined;
   const alreadyAnsweredToday = responses.some(
     (response) => response.patientId === patient.id && response.mode === "daily" &&
-      response.programId === patientProgram?.id && response.cardId === cardOfDay?.id
+      response.cardId === cardOfDay?.id && (response.programId === patientProgram?.id ||
+        (response.programId === undefined && patientProgram !== undefined &&
+          new Date(response.createdAt).getTime() >= new Date(patientProgram.startedAt).getTime()))
   );
   useEffect(() => {
     setPatientAnswer("");
@@ -93,7 +101,7 @@ export function GameScreen({
   const filteredDecks = decks.filter((deck) => !themeId || deck.themeId === themeId);
   const matchingCards = useMemo(
     () => findCards(cards, decks, themes, { query, themeId, deckId, classification }),
-    [query, themeId, deckId, classification]
+    [cards, decks, themes, query, themeId, deckId, classification]
   );
   const visibleCards = matchingCards.slice(0, visibleCount);
 
@@ -135,16 +143,21 @@ export function GameScreen({
     setFeedback("7 cartas sorteadas deste baralho.");
   }
 
-  function configureDailyProgram() {
+  async function configureDailyProgram() {
     if (selectedCards.length !== 7 || new Set(selectedCards.map((card) => card.deckId)).size !== 1 ||
-      new Set(selectedCards.map((card) => card.theme)).size !== 7) return;
-    onAddProgram({
-      id: `g${Date.now()}`,
-      patientId: patient.id,
-      cardIds: selectedCardIds,
-      startedAt: new Date().toISOString()
-    });
-    setFeedback(`Jogo de 7 dias configurado para ${patient.name}.`);
+      new Set(selectedCards.map((card) => card.theme)).size !== 7 || saving) return;
+    setSaving(true);
+    try {
+      await onAddProgram({
+        id: `g${Date.now()}`,
+        patientId: patient.id,
+        cardIds: selectedCardIds,
+        startedAt: new Date().toISOString()
+      });
+      setFeedback(`Jogo de 7 dias configurado para ${patient.name}.`);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Erro ao configurar o jogo.");
+    } finally { setSaving(false); }
   }
 
   function startSessionGame() {
@@ -162,35 +175,38 @@ export function GameScreen({
   }
 
   function openSessionAnswer(cardId: string) {
-    const existing = responses.find((response) =>
-      response.patientId === patient.id && response.mode === "session" &&
-      response.sessionGameId === activeSessionGame?.id && response.cardId === cardId
-    );
     setEditingCardId(cardId);
-    setSessionAnswer(existing?.answer ?? "");
+    setSessionAnswer("");
+    setFeedback("");
   }
 
-  function submitPatientAnswer() {
-    if (!patientProgram || !cardOfDay || alreadyAnsweredToday || !patientAnswer.trim()) return;
-    onAddResponse({
-      id: `r${Date.now()}`,
-      patientId: patient.id,
-      cardId: cardOfDay.id,
-      mode: "daily",
-      programId: patientProgram.id,
-      programDay: dayIndex! + 1,
-      answer: patientAnswer.trim(),
-      createdAt: new Date().toISOString()
-    });
-    setPatientAnswer("");
+  async function submitPatientAnswer() {
+    if (!patientProgram || !cardOfDay || alreadyAnsweredToday || !patientAnswer.trim() || saving) return;
+    setSaving(true);
+    setFeedback("");
+    try {
+      await onAddResponse({
+        id: `r${Date.now()}`,
+        patientId: patient.id,
+        cardId: cardOfDay.id,
+        mode: "daily",
+        programId: patientProgram.id,
+        programDay: dayIndex! + 1,
+        answer: patientAnswer.trim(),
+        createdAt: new Date().toISOString()
+      });
+      setPatientAnswer("");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Erro ao enviar a resposta.");
+    } finally { setSaving(false); }
   }
 
-  function saveSessionAnswer() {
-    if (!activeSessionGame || !editingCard || !sessionAnswer.trim()) return;
-    if (editingResponse) {
-      onUpdateResponse(editingResponse.id, sessionAnswer.trim());
-    } else {
-      onAddResponse({
+  async function saveSessionAnswer() {
+    if (!activeSessionGame || !editingCard || !sessionAnswer.trim() || editingResponse || saving) return;
+    setSaving(true);
+    setFeedback("");
+    try {
+      await onAddResponse({
         id: `r${Date.now()}-${Math.random().toString(36).slice(2)}`,
         patientId: patient.id,
         cardId: editingCard.id,
@@ -200,17 +216,22 @@ export function GameScreen({
         note: "Resposta anotada pelo terapeuta durante a sessão.",
         createdAt: new Date().toISOString()
       });
-    }
-    setEditingCardId(null);
-    setSessionAnswer("");
+      setEditingCardId(null);
+      setSessionAnswer("");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Erro ao salvar a resposta.");
+    } finally { setSaving(false); }
   }
 
   if (actor !== "patient" && view === "random") {
     return (
       <RandomScreen
         patientName={patient.name}
-        initialThemeId={themeId ?? themes[0].id}
-        initialDeckId={deckId ?? decks.find((deck) => deck.themeId === themeId)?.id ?? decks[0].id}
+        cards={cards}
+        decks={decks}
+        themes={themes}
+        initialThemeId={themeId ?? themes[0]?.id ?? ""}
+        initialDeckId={deckId ?? decks.find((deck) => deck.themeId === themeId)?.id ?? decks[0]?.id ?? ""}
         initialClassification={classification}
         onBack={() => setView("cards")}
         onUseCard={(card) => {
@@ -265,7 +286,7 @@ export function GameScreen({
                     <Text style={styles.cardTitle}>{card.title}</Text>
                     <Text style={styles.cardPrompt}>{card.prompt}</Text>
                     {answer ? <Text style={styles.helperText}>Resposta anotada: {answer.answer}</Text> : null}
-                    <SecondaryButton label={answer ? "Editar resposta" : "Anotar resposta"} onPress={() => openSessionAnswer(cardId)} />
+                    {!answer ? <SecondaryButton label="Anotar resposta" onPress={() => openSessionAnswer(cardId)} /> : null}
                   </View>
                 );
               })}
@@ -358,7 +379,7 @@ export function GameScreen({
                 </ScrollView>
                 <Text style={styles.inputLabel}>Classificação</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catalogFilters}>
-                  {([null, ...classifications] as (CardClassification | null)[]).map((item) => (
+                  {([null, ...filterClassifications] as (CardClassification | null)[]).map((item) => (
                     <TouchableOpacity key={item ?? "all"} style={[styles.filterChip, classification === item && styles.filterChipActive]} onPress={() => { setClassification(item); setVisibleCount(30); }}>
                       <Text style={[styles.filterChipText, classification === item && styles.filterChipTextActive]}>{item ?? "Todas"}</Text>
                     </TouchableOpacity>
@@ -394,7 +415,7 @@ export function GameScreen({
             {mode === "daily" ? (
               <>
                 <SecondaryButton label="Sortear 7 deste baralho" onPress={randomSeven} disabled={!deckId} />
-                <PrimaryButton label="Configurar jogo de 7 dias" onPress={configureDailyProgram} disabled={selectedCardIds.length !== 7} />
+                <PrimaryButton label={saving ? "Salvando..." : "Configurar jogo de 7 dias"} onPress={configureDailyProgram} disabled={selectedCardIds.length !== 7 || saving} />
               </>
             ) : (
               <>
@@ -419,6 +440,7 @@ export function GameScreen({
       ) : (
         <>
           <Section title="Jogo de 7 dias">
+            {feedback ? <Text style={styles.errorText}>{feedback}</Text> : null}
             {cardOfDay ? (
               <>
                 <Text style={styles.helperText}>Dia {dayIndex! + 1} de 7 · Uma carta por dia</Text>
@@ -432,7 +454,7 @@ export function GameScreen({
                 ) : (
                   <>
                     <Input label="Sua resposta" value={patientAnswer} onChangeText={setPatientAnswer} placeholder="Escreva como isso aparece para você hoje." multiline />
-                    <PrimaryButton label="Enviar resposta" onPress={submitPatientAnswer} disabled={!patientAnswer.trim()} />
+                    <PrimaryButton label={saving ? "Enviando..." : "Enviar resposta"} onPress={submitPatientAnswer} disabled={!patientAnswer.trim() || saving} />
                   </>
                 )}
               </>
@@ -450,8 +472,9 @@ export function GameScreen({
               <Text style={styles.cardTitle}>{editingCard?.title}</Text>
               <Text style={styles.cardPrompt}>{editingCard?.prompt}</Text>
               <Input label="Resposta" value={sessionAnswer} onChangeText={setSessionAnswer} placeholder="Anote o que o paciente respondeu." multiline />
-              <PrimaryButton label="Salvar resposta" onPress={saveSessionAnswer} disabled={!sessionAnswer.trim()} />
-              <SecondaryButton label="Cancelar" onPress={() => setEditingCardId(null)} />
+              {feedback ? <Text style={styles.errorText}>{feedback}</Text> : null}
+              <PrimaryButton label={saving ? "Salvando..." : "Salvar resposta"} onPress={saveSessionAnswer} disabled={!sessionAnswer.trim() || saving} />
+              <SecondaryButton label="Cancelar" onPress={() => setEditingCardId(null)} disabled={saving} />
             </View>
           </View>
         </Modal>
