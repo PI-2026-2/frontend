@@ -54,14 +54,25 @@ export type Program = {
   startedAt: string;
 };
 
+export type SessionGame = {
+  id: string;
+  patientId: string;
+  cardIds: string[];
+  startedAt: string;
+};
+
 export type ResponseRecord = {
   id: string;
   patientId: string;
   cardId: string;
   mode: GameMode;
+  programId?: string;
+  programDay?: number;
+  sessionGameId?: string;
   answer: string;
   note?: string;
   createdAt: string;
+  updatedAt?: string;
 };
 
 export type ClinicalNote = {

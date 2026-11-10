@@ -186,7 +186,12 @@ export function RecordScreen({ patient, responses, notes, onBack, onSaveNote, on
               const card = cards.find((item) => item.id === response.cardId);
               return (
                 <View key={response.id} style={styles.recordHistoryItem}>
-                  <Text style={styles.recordHistoryDate}>{card?.title ?? "Carta"}</Text>
+                  <Text style={styles.recordHistoryDate}>
+                    {response.mode === "daily" ? `7 dias · Dia ${response.programDay ?? "?"}` : "Sessão"} · {new Date(response.createdAt).toLocaleDateString("pt-BR")}
+                    {response.updatedAt ? " · editado" : ""}
+                  </Text>
+                  <Text style={styles.cardTitle}>{card?.title ?? "Carta"}</Text>
+                  {card ? <Text style={styles.cardPrompt}>{card.prompt}</Text> : null}
                   <Text style={styles.recordHistoryText}>{response.answer}</Text>
                   {response.note ? <Text style={styles.recordHistoryNote}>Nota: {response.note}</Text> : null}
                 </View>

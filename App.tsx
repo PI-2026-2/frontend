@@ -9,7 +9,7 @@ import { PatientsScreen } from "./APP/screens/PatientsScreen";
 import { RecordScreen } from "./APP/screens/RecordScreen";
 import { RegistrationScreen } from "./APP/screens/RegistrationScreen";
 import { palette, styles } from "./APP/styles";
-import { AuthAccount, AuthSession, ChatMessage, ClinicalNote, Patient, Program, ResponseRecord, TabKey } from "./APP/types";
+import { AuthAccount, AuthSession, ChatMessage, ClinicalNote, Patient, Program, ResponseRecord, SessionGame, TabKey } from "./APP/types";
 import { getTodayLabel } from "./APP/utils";
 
 export default function App() {
@@ -36,6 +36,7 @@ export default function App() {
     }
   ]);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [sessionGames, setSessionGames] = useState<SessionGame[]>([]);
   const [responses, setResponses] = useState<ResponseRecord[]>([]);
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
   const [notifications, setNotifications] = useState<string[]>([]);
@@ -138,10 +139,20 @@ export default function App() {
   function addResponse(response: ResponseRecord) {
     const card = cards.find((item) => item.id === response.cardId);
     setResponses((current) => [response, ...current]);
-    setNotifications((current) => [
-      `${selectedPatient.name} respondeu "${card?.title ?? "carta"}" em ${getTodayLabel()}.`,
-      ...current
-    ]);
+    if (response.mode === "daily") {
+      setNotifications((current) => [
+        `${selectedPatient.name} respondeu "${card?.title ?? "carta"}" em ${getTodayLabel()}.`,
+        ...current
+      ]);
+    }
+  }
+
+  function updateResponse(responseId: string, answer: string) {
+    setResponses((current) => current.map((response) =>
+      response.id === responseId && response.mode === "session"
+        ? { ...response, answer, updatedAt: new Date().toISOString() }
+        : response
+    ));
   }
 
   function addProgram(program: Program) {
@@ -150,6 +161,10 @@ export default function App() {
       `Novo jogo de 7 dias configurado para ${selectedPatient.name}.`,
       ...current
     ]);
+  }
+
+  function addSessionGame(game: SessionGame) {
+    setSessionGames((current) => [game, ...current]);
   }
 
   return (
@@ -214,10 +229,13 @@ export default function App() {
               patient={selectedPatient}
               patients={patients}
               programs={programs}
+              sessionGames={sessionGames}
               responses={responses}
               selectedPatientId={selectedPatientId}
               onAddProgram={addProgram}
+              onAddSessionGame={addSessionGame}
               onAddResponse={addResponse}
+              onUpdateResponse={updateResponse}
               onSelectPatient={setSelectedPatientId}
             />
           ) : null}

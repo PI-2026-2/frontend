@@ -374,6 +374,8 @@ export const styles = StyleSheet.create({
   cardOrigin: { color: palette.teal, fontSize: 11, fontWeight: "800", marginBottom: 6 },
   cardTitle: { color: palette.ink, fontSize: 15, fontWeight: "900", marginBottom: 5 },
   cardPrompt: { color: palette.muted, fontSize: 13, lineHeight: 19 },
+  answerModalOverlay: { flex: 1, backgroundColor: "#00000088", justifyContent: "center", padding: 20 },
+  answerModalContent: { backgroundColor: palette.card, borderRadius: 10, padding: 20, gap: 12, maxWidth: 560, width: "100%", alignSelf: "center" },
   helperText: { color: palette.muted, fontSize: 12, fontWeight: "700", marginTop: 10, marginBottom: 6 },
   cardOfDay: {
     minHeight: 220,

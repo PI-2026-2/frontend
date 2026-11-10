@@ -1,11 +1,13 @@
-import { Patient } from "./types";
+import type { Patient } from "./types";
 
-export function getProgramDayIndex(startedAt: string) {
+export function getProgramDayIndex(startedAt: string, now = new Date()): number | null {
   const start = new Date(startedAt);
-  const elapsedMs = new Date().getTime() - start.getTime();
-  const elapsedDays = Math.floor(elapsedMs / 86_400_000);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(now.getTime())) return null;
+  const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const currentDay = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const elapsedDays = Math.round((currentDay - startDay) / 86_400_000);
 
-  return Math.min(6, Math.max(0, elapsedDays));
+  return elapsedDays >= 0 && elapsedDays < 7 ? elapsedDays : null;
 }
 
 export function getTodayLabel() {

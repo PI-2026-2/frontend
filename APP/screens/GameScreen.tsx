@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from "react";
-import { ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { AppState, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { findCards, pickDailyCards } from "../catalog";
 import { EmptyState, Input, PatientPicker, PrimaryButton, Screen, SecondaryButton, Section, SegmentButton } from "../components/UI";
 import { cards, classifications, decks, themes } from "../data";
 import { styles } from "../styles";
-import { Actor, CardClassification, GameMode, Patient, Program, ResponseRecord, TherapyCard } from "../types";
+import { Actor, CardClassification, GameMode, Patient, Program, ResponseRecord, SessionGame, TherapyCard } from "../types";
 import { getProgramDayIndex } from "../utils";
 import { RandomScreen } from "./RandomScreen";
 
@@ -16,10 +16,13 @@ export function GameScreen({
   patient,
   patients,
   programs,
+  sessionGames,
   responses,
   selectedPatientId,
   onAddProgram,
+  onAddSessionGame,
   onAddResponse,
+  onUpdateResponse,
   onSelectPatient
 }: {
   actor: Actor;
@@ -27,10 +30,13 @@ export function GameScreen({
   patient: Patient;
   patients: Patient[];
   programs: Program[];
+  sessionGames: SessionGame[];
   responses: ResponseRecord[];
   selectedPatientId: string;
   onAddProgram: (program: Program) => void;
+  onAddSessionGame: (game: SessionGame) => void;
   onAddResponse: (response: ResponseRecord) => void;
+  onUpdateResponse: (responseId: string, answer: string) => void;
   onSelectPatient: (patientId: string) => void;
 }) {
   const [mode, setMode] = useState<GameMode>("daily");
@@ -42,17 +48,45 @@ export function GameScreen({
   const [deckQuery, setDeckQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(30);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [sessionDraftOpen, setSessionDraftOpen] = useState(false);
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [patientAnswer, setPatientAnswer] = useState("");
-  const [sessionNote, setSessionNote] = useState("");
+  const [sessionAnswer, setSessionAnswer] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const refresh = () => setNow(new Date());
+    const interval = setInterval(refresh, 30_000);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") refresh();
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, []);
 
   const selectedCards = selectedCardIds.map((id) => cards.find((card) => card.id === id)).filter((card): card is TherapyCard => Boolean(card));
-  const patientProgram = programs.find((program) => program.patientId === patient.id);
-  const dayIndex = patientProgram ? getProgramDayIndex(patientProgram.startedAt) : 0;
-  const cardOfDay = patientProgram ? cards.find((card) => card.id === patientProgram.cardIds[dayIndex]) : undefined;
-  const alreadyAnsweredToday = responses.some(
-    (response) => response.patientId === patient.id && response.cardId === cardOfDay?.id
+  const activeSessionGame = sessionGames.find((game) => game.patientId === patient.id);
+  const showSessionGame = mode === "session" && !sessionDraftOpen && Boolean(activeSessionGame);
+  const editingCard = cards.find((card) => card.id === editingCardId);
+  const editingResponse = responses.find((response) =>
+    response.patientId === patient.id && response.mode === "session" &&
+    response.sessionGameId === activeSessionGame?.id && response.cardId === editingCardId
   );
+  const patientProgram = programs.find((program) => program.patientId === patient.id);
+  const dayIndex = patientProgram ? getProgramDayIndex(patientProgram.startedAt, now) : null;
+  const cardOfDay = patientProgram && dayIndex !== null
+    ? cards.find((card) => card.id === patientProgram.cardIds[dayIndex])
+    : undefined;
+  const alreadyAnsweredToday = responses.some(
+    (response) => response.patientId === patient.id && response.mode === "daily" &&
+      response.programId === patientProgram?.id && response.cardId === cardOfDay?.id
+  );
+  useEffect(() => {
+    setPatientAnswer("");
+  }, [patientProgram?.id, dayIndex]);
   const matchingDecks = decks.filter((deck) =>
     (!themeId || deck.themeId === themeId) && deck.name.toLowerCase().includes(deckQuery.trim().toLowerCase())
   );
@@ -65,14 +99,17 @@ export function GameScreen({
 
   function selectCard(card: TherapyCard) {
     setFeedback("");
+    if (mode === "session") {
+      setSelectedCardIds((current) => current.includes(card.id)
+        ? current.filter((id) => id !== card.id)
+        : [...current, card.id]
+      );
+      return;
+    }
     setThemeId(decks.find((deck) => deck.id === card.deckId)?.themeId ?? null);
     setDeckId(card.deckId);
     if (selectedCardIds.includes(card.id)) {
       setSelectedCardIds(selectedCardIds.filter((id) => id !== card.id));
-      return;
-    }
-    if (mode === "session") {
-      setSelectedCardIds([card.id]);
       return;
     }
     const sameDeck = selectedCardIds.filter((id) => cards.find((item) => item.id === id)?.deckId === card.deckId);
@@ -110,33 +147,62 @@ export function GameScreen({
     setFeedback(`Jogo de 7 dias configurado para ${patient.name}.`);
   }
 
+  function startSessionGame() {
+    if (selectedCardIds.length === 0) return;
+    onAddSessionGame({
+      id: `s${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      patientId: patient.id,
+      cardIds: [...selectedCardIds],
+      startedAt: new Date().toISOString()
+    });
+    setSelectedCardIds([]);
+    setSessionDraftOpen(false);
+    setView("cards");
+    setFeedback("");
+  }
+
+  function openSessionAnswer(cardId: string) {
+    const existing = responses.find((response) =>
+      response.patientId === patient.id && response.mode === "session" &&
+      response.sessionGameId === activeSessionGame?.id && response.cardId === cardId
+    );
+    setEditingCardId(cardId);
+    setSessionAnswer(existing?.answer ?? "");
+  }
+
   function submitPatientAnswer() {
-    if (!cardOfDay || !patientAnswer.trim()) return;
+    if (!patientProgram || !cardOfDay || alreadyAnsweredToday || !patientAnswer.trim()) return;
     onAddResponse({
       id: `r${Date.now()}`,
       patientId: patient.id,
       cardId: cardOfDay.id,
       mode: "daily",
+      programId: patientProgram.id,
+      programDay: dayIndex! + 1,
       answer: patientAnswer.trim(),
       createdAt: new Date().toISOString()
     });
     setPatientAnswer("");
   }
 
-  function saveSessionResponse() {
-    const card = selectedCards[0];
-    if (!card || !sessionNote.trim()) return;
-    onAddResponse({
-      id: `r${Date.now()}`,
-      patientId: patient.id,
-      cardId: card.id,
-      mode: "session",
-      answer: sessionNote.trim(),
-      note: "Registrado pelo terapeuta durante a sessão.",
-      createdAt: new Date().toISOString()
-    });
-    setSessionNote("");
-    setFeedback("Resposta da sessão salva.");
+  function saveSessionAnswer() {
+    if (!activeSessionGame || !editingCard || !sessionAnswer.trim()) return;
+    if (editingResponse) {
+      onUpdateResponse(editingResponse.id, sessionAnswer.trim());
+    } else {
+      onAddResponse({
+        id: `r${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        patientId: patient.id,
+        cardId: editingCard.id,
+        mode: "session",
+        sessionGameId: activeSessionGame.id,
+        answer: sessionAnswer.trim(),
+        note: "Resposta anotada pelo terapeuta durante a sessão.",
+        createdAt: new Date().toISOString()
+      });
+    }
+    setEditingCardId(null);
+    setSessionAnswer("");
   }
 
   if (actor !== "patient" && view === "random") {
@@ -167,7 +233,8 @@ export function GameScreen({
             onSelectPatient={(patientId) => {
               if (patientId !== selectedPatientId) {
                 setSelectedCardIds([]);
-                setSessionNote("");
+                setSessionDraftOpen(false);
+                setEditingCardId(null);
                 setFeedback("");
               }
               onSelectPatient(patientId);
@@ -177,11 +244,35 @@ export function GameScreen({
           <View style={styles.catalogSection}>
             <Text style={styles.sectionTitle}>Modo de jogo</Text>
             <View style={styles.segmentRow}>
-              <SegmentButton active={mode === "daily"} label="7 dias" onPress={() => { setMode("daily"); setSelectedCardIds([]); setFeedback(""); }} />
-              <SegmentButton active={mode === "session"} label="Sessão" onPress={() => { setMode("session"); setSelectedCardIds([]); setFeedback(""); }} />
+              <SegmentButton active={mode === "daily"} label="7 dias" onPress={() => { if (mode !== "daily") setSelectedCardIds([]); setMode("daily"); setSessionDraftOpen(false); setFeedback(""); }} />
+              <SegmentButton active={mode === "session"} label="Sessão" onPress={() => { if (mode !== "session") setSelectedCardIds([]); setMode("session"); setSessionDraftOpen(false); setFeedback(""); }} />
             </View>
           </View>
 
+          {showSessionGame && activeSessionGame ? (
+            <Section title="Perguntas da sessão">
+              <Text style={styles.helperText}>{activeSessionGame.cardIds.length} pergunta(s) escolhida(s). Anote as respostas do paciente em cada carta.</Text>
+              {activeSessionGame.cardIds.map((cardId, index) => {
+                const card = cards.find((item) => item.id === cardId);
+                const answer = responses.find((response) =>
+                  response.patientId === patient.id && response.mode === "session" &&
+                  response.sessionGameId === activeSessionGame.id && response.cardId === cardId
+                );
+                if (!card) return null;
+                return (
+                  <View key={cardId} style={styles.playCard}>
+                    <Text style={styles.cardOrigin}>Pergunta {index + 1} de {activeSessionGame.cardIds.length}</Text>
+                    <Text style={styles.cardTitle}>{card.title}</Text>
+                    <Text style={styles.cardPrompt}>{card.prompt}</Text>
+                    {answer ? <Text style={styles.helperText}>Resposta anotada: {answer.answer}</Text> : null}
+                    <SecondaryButton label={answer ? "Editar resposta" : "Anotar resposta"} onPress={() => openSessionAnswer(cardId)} />
+                  </View>
+                );
+              })}
+              <SecondaryButton label="Escolher perguntas para nova sessão" onPress={() => { setSelectedCardIds([]); setSessionDraftOpen(true); setView("cards"); }} />
+            </Section>
+          ) : (
+          <>
           <View style={styles.catalogToolbar}>
             <View style={styles.segmentRow}>
               <SegmentButton active={view === "themes"} label="Tema" onPress={() => setView("themes")} />
@@ -293,24 +384,28 @@ export function GameScreen({
               </View>
               {matchingCards.length > visibleCount ? <SecondaryButton label="Carregar mais cartas" onPress={() => setVisibleCount((count) => count + 30)} /> : null}
 
-              <View style={styles.catalogSection}>
-                <Text style={styles.sectionTitle}>{mode === "daily" ? "Jogo de 7 dias" : "Carta da sessão"}</Text>
-                <Text style={styles.helperText}>{selectedCardIds.length}/{mode === "daily" ? 7 : 1} carta(s) selecionada(s) {selectedCards[0] ? `· ${decks.find((deck) => deck.id === selectedCards[0].deckId)?.name}` : ""}</Text>
-                {feedback ? <Text style={styles.helperText}>{feedback}</Text> : null}
-                {mode === "daily" ? (
-                  <>
-                    <SecondaryButton label="Sortear 7 deste baralho" onPress={randomSeven} disabled={!deckId} />
-                    <PrimaryButton label="Configurar jogo de 7 dias" onPress={configureDailyProgram} disabled={selectedCardIds.length !== 7} />
-                  </>
-                ) : (
-                  <>
-                    <Input label="Resposta anotada em sessão" value={sessionNote} onChangeText={setSessionNote} placeholder="Registre o que o paciente respondeu durante a sessão." multiline />
-                    <PrimaryButton label="Salvar resposta da sessão" onPress={saveSessionResponse} disabled={selectedCardIds.length !== 1 || !sessionNote.trim()} />
-                  </>
-                )}
-              </View>
             </>
           ) : null}
+
+          <View style={styles.catalogSection}>
+            <Text style={styles.sectionTitle}>{mode === "daily" ? "Jogo de 7 dias" : "Seleção da sessão"}</Text>
+            <Text style={styles.helperText}>{selectedCardIds.length}{mode === "daily" ? "/7" : ""} pergunta(s) selecionada(s){mode === "daily" && selectedCards[0] ? ` · ${decks.find((deck) => deck.id === selectedCards[0].deckId)?.name}` : ""}</Text>
+            {feedback ? <Text style={styles.helperText}>{feedback}</Text> : null}
+            {mode === "daily" ? (
+              <>
+                <SecondaryButton label="Sortear 7 deste baralho" onPress={randomSeven} disabled={!deckId} />
+                <PrimaryButton label="Configurar jogo de 7 dias" onPress={configureDailyProgram} disabled={selectedCardIds.length !== 7} />
+              </>
+            ) : (
+              <>
+                <Text style={styles.helperText}>Escolha quantas perguntas precisar e finalize para anotar as respostas nesta tela.</Text>
+                {selectedCards.map((card, index) => <Text key={card.id} style={styles.bodyText}>{index + 1}. {card.title}</Text>)}
+                <PrimaryButton label="Finalizar escolha das perguntas" onPress={startSessionGame} disabled={selectedCardIds.length === 0} />
+              </>
+            )}
+          </View>
+          </>
+          )}
 
           <Section title="Notificações">
             {notifications.length === 0 ? <EmptyState text="As respostas do paciente aparecerão aqui." /> : notifications.map((notification, index) => (
@@ -322,20 +417,45 @@ export function GameScreen({
           </Section>
         </>
       ) : (
-        <Section title="Carta do dia">
-          {cardOfDay ? (
-            <>
-              <View style={styles.cardOfDay}>
-                <Text style={styles.cardOfDayMeta}>{decks.find((deck) => deck.id === cardOfDay.deckId)?.name} · {cardOfDay.classification}</Text>
-                <Text style={styles.bigCardTitle}>{cardOfDay.title}</Text>
-                <Text style={styles.bigCardPrompt}>{cardOfDay.prompt}</Text>
-              </View>
-              <Input label="Sua resposta" value={patientAnswer} onChangeText={setPatientAnswer} placeholder="Escreva como isso aparece para você hoje." multiline />
-              <PrimaryButton label={alreadyAnsweredToday ? "Enviar nova resposta" : "Enviar resposta"} onPress={submitPatientAnswer} disabled={!patientAnswer.trim()} />
-            </>
-          ) : <EmptyState text="Seu terapeuta ainda não configurou um jogo de 7 dias." />}
-        </Section>
+        <>
+          <Section title="Jogo de 7 dias">
+            {cardOfDay ? (
+              <>
+                <Text style={styles.helperText}>Dia {dayIndex! + 1} de 7 · Uma carta por dia</Text>
+                <View style={styles.cardOfDay}>
+                  <Text style={styles.cardOfDayMeta}>{decks.find((deck) => deck.id === cardOfDay.deckId)?.name} · {cardOfDay.classification}</Text>
+                  <Text style={styles.bigCardTitle}>{cardOfDay.title}</Text>
+                  <Text style={styles.bigCardPrompt}>{cardOfDay.prompt}</Text>
+                </View>
+                {alreadyAnsweredToday ? (
+                  <EmptyState text={dayIndex === 6 ? "Resposta enviada. Você concluiu o jogo de 7 dias." : "Resposta de hoje enviada. A próxima carta aparecerá amanhã."} />
+                ) : (
+                  <>
+                    <Input label="Sua resposta" value={patientAnswer} onChangeText={setPatientAnswer} placeholder="Escreva como isso aparece para você hoje." multiline />
+                    <PrimaryButton label="Enviar resposta" onPress={submitPatientAnswer} disabled={!patientAnswer.trim()} />
+                  </>
+                )}
+              </>
+            ) : (
+              <EmptyState text={patientProgram ? "O jogo de 7 dias terminou. Peça ao terapeuta um novo plano." : "Seu terapeuta ainda não configurou um jogo de 7 dias."} />
+            )}
+          </Section>
+        </>
       )}
+      {actor !== "patient" ? (
+        <Modal visible={editingCardId !== null} transparent animationType="fade" onRequestClose={() => setEditingCardId(null)}>
+          <View style={styles.answerModalOverlay}>
+            <View style={styles.answerModalContent}>
+              <Text style={styles.sectionTitle}>Anotar resposta do paciente</Text>
+              <Text style={styles.cardTitle}>{editingCard?.title}</Text>
+              <Text style={styles.cardPrompt}>{editingCard?.prompt}</Text>
+              <Input label="Resposta" value={sessionAnswer} onChangeText={setSessionAnswer} placeholder="Anote o que o paciente respondeu." multiline />
+              <PrimaryButton label="Salvar resposta" onPress={saveSessionAnswer} disabled={!sessionAnswer.trim()} />
+              <SecondaryButton label="Cancelar" onPress={() => setEditingCardId(null)} />
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </Screen>
   );
 }

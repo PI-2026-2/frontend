@@ -9,8 +9,8 @@ Protótipo em React Native com Expo Go baseado nas telas do Figma e no escopo pr
 
 O fluxo do jogo parte sempre do terapeuta escolhendo o paciente e depois as cartas. Há dois modos:
 
-- Plano de 7 dias: o terapeuta seleciona 7 cartas de um mesmo baralho, aleatoriamente ou manualmente. O paciente responde a carta do dia e o terapeuta recebe uma notificação local no protótipo.
-- Sessão ao vivo: o terapeuta escolhe uma carta para mostrar ao paciente e registra a resposta durante a sessão.
+- Plano de 7 dias: o terapeuta seleciona 7 cartas de um mesmo baralho, aleatoriamente ou manualmente. O paciente responde uma carta por dia no aplicativo. As respostas aparecem na ficha do paciente e o terapeuta recebe uma notificação local no protótipo.
+- Sessão ao vivo: o terapeuta escolhe quantas perguntas precisar e finaliza a seleção. As perguntas aparecem na tela do terapeuta, onde ele abre uma caixa para anotar ou editar a resposta do paciente. As respostas também aparecem na ficha do paciente.
 
 ## Catálogo de cartas
 
